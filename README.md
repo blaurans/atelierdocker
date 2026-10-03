@@ -93,37 +93,63 @@ Chaque mission a jusqu'à **3 indices** (du plus flou au plus direct) et une
 
 ## Comment la validation fonctionne
 
-Le mot de passe de chaque mission est **affiché dans l'énoncé**. Ce n'est pas un
-secret : c'est un **jeton de progression**. L'énoncé le dit explicitement, pour
-que personne ne croie devoir le deviner.
+Le mot de passe d'une mission **n'existe pas comme donnée**. Il n'est dans aucun
+énoncé, dans aucune commande, dans le code. Le serveur le calcule à la volée :
 
-Le flux d'une mission :
-
-```bash
-docker run --rm -p 8080:80 --name arena-web nginx:alpine
-docker exec arena-web sh -c "echo 'FLAG{PORT_MAPPING_WEB_EXPERT_8080}' > /usr/share/nginx/html/index.html"
-curl http://localhost:8080
+```
+FLAG{ HMAC_SHA256(sel_du_déploiement, jeton_du_joueur + ":" + id_mission)[:20] }
 ```
 
-Puis, dans l'onglet du jeu ou en `curl` :
+Un étudiant récupère donc son mot de passe **en exécutant une commande**, et
+cette commande est **celle que le module vient d'enseigner** :
+
+| Module | Technique | Le mot de passe sort de… |
+|---|---|---|
+| 1 · fondamentaux | lancer un conteneur | sa sortie |
+| 2 · images | `docker run` | la sortie du conteneur |
+| 3 · conteneurs | entrer dans un conteneur en marche | `docker exec` / `docker cp` |
+| 4 · réseau | requête HTTP sur un port publié | la réponse du serveur web |
+| 5 · images construites | construire et lancer son image | la sortie de son image |
+| 6 · volumes | volume relu par un second conteneur | le fichier relu après destruction |
+| 7 · Compose | journaux de la pile | `docker compose logs` |
+
+Exemple — mission 15, « Port Master » :
 
 ```bash
-curl -X POST http://<IP>:8000/api/submit \
-  -H "Content-Type: application/json" \
-  -H "X-Arena-Token: dq_..." \
-  -d '{"flag":"FLAG{PORT_MAPPING_WEB_EXPERT_8080}"}'
+docker run -d -p 8080:80 --name arena-web nginx:alpine
+docker exec arena-web wget -qO /usr/share/nginx/html/index.html \
+  "http://<IP>:8000/api/secret/m4-04-port-master/raw?t=dq_..."
+curl -s http://SERVER_IP:8080
 ```
 
-**Honnêteté sur la triche.** Un flag saisi à la main ne prouve rien sur le
-travail réellement effectué : un étudiant peut valider les 26 missions sans avoir
-lancé un seul conteneur. Le jeu ne prétend pas le contraire. Deux garde-fous
-sont fournis si vous voulez durcir l'évaluation — voir § *Attestation*.
+Le mot de passe arrive **par le port publié** : la mission n'est validée que si
+le réseau fait réellement son travail.
 
-Dans 14 missions sur 26, le flag est de surcroît **découvert par une
-manipulation réelle** : un fichier écrit puis relu depuis un autre conteneur,
-une page réellement servie par nginx, une variable d'environnement normalisée
-par `docker compose config`. L'étudiant qui n'a pas fait le travail ne trouve
-rien à copier.
+Trois conséquences :
+
+- **il est différent pour chaque équipe** — le communiquer à un autre binôme
+  ne lui sert à rien ;
+- **il est impossible à deviner** — sans jeton, la route renvoie `401` ;
+- **il est impossible à copier depuis un autre écran** — celui du voisin est
+  calculé à partir de *son* jeton, et ne valide chez personne d'autre.
+
+Le validateur de contenu **refuse de démarrer le serveur** si un flag traîne
+dans un énoncé : `npm run check-content` le signale avant même que vous ne
+lanciez un TP.
+
+**Honnêteté sur la triche — lisez ceci.** Ce mécanisme prouve que l'étudiant a
+la bonne *clé*, pas qu'il a fait le *travail*. Un déterminé peut demander son
+mot de passe à un ami, ou lire la commande dans son historique de shell avant
+de prétendre ne pas l'avoir fait. Rien de ce que le jeu observe ne prouve
+l'exécution réelle, et il ne prétend pas le contraire.
+
+Si l'évaluation doit être incontestable, c'est `ARENA_ATTESTATION=1` — chaque
+mot de passe correct reste **en attente** de votre validation. C'est la seule
+barre qui tienne. Voir § *Attestation*.
+
+Les deux travaux du sous-agent sont conservés : les 6 missions historiques
+gardent leur intention pédagogique d'origine, et la mission 5 construit
+réellement une image (`docker build` avec le mot de passe en `ARG`).
 
 ---
 
@@ -170,12 +196,61 @@ destruction croisée entre binômes, conditions réelles d'ingénierie.
 
 ## Guide de l'enseignant
 
+### Ce que voit l'étudiant
+
+Le jeu tient en trois zones. Rien n'est caché, mais tout n'est pas évident au
+premier coup d'œil.
+
+**L'en-tête** — son nom d'équipe, son mode, l'heure d'inscription, et une
+pastille violette `🔑 dq_a1b2c3…` : c'est son jeton d'API. **Un clic le copie**
+dans le presse-papiers, ce qui évite de le retaper dans une commande `curl`.
+Le jeton est tronqué à l'affichage : sur un vidéoprojecteur, on ne laisse pas
+traîner les identifiants en clair.
+
+**Le plan, à gauche** — les 7 modules et les 26 missions, avec le compteur de
+progression. Une mission validée porte un ✅, la suivante à faire est signalée
+en haut par un encadré « Par où continuer ». Toutes les missions sont
+accessibles : rien n'est verrouillé.
+
+**La mission, à droite** — l'énoncé, les mots-clés travaillés, les indices
+(cliqués un par un, du plus flou au plus direct), le point de contrôle, puis le
+formulaire de validation.
+
+### Valider une mission
+
+Le formulaire comporte deux étapes numérotées, dans cet ordre :
+
+1. **« Va chercher ton mot de passe »** — un bloc de commande, avec un bouton
+   `📋 copier la commande` à côté. La commande fait trois lignes et contient un
+   jeton de 40 caractères : la recopier à la main depuis un affichage est le
+   meilleur moyen de se tromper d'un caractère et de ne jamais comprendre
+   pourquoi. **copiez-la.**
+2. **« Colle-le ici »** — le champ de saisie, puis `Valider la mission`.
+
+Le mot de passe s'affiche alors avec son détail : points de base, bonus de
+podium, bonus de rapidité, malus pour faux flag.
+
+> **Attention**, la mission 1 demande de lancer un conteneur. Si l'étudiant
+> colle le mot de passe sans avoir lancé la commande, il obtient `401` ou
+> `invalid`. C'est normal : le mot de passe est **le résultat** de la commande,
+> il n'existe pas autrement.
+
 ### Avant le TP
 
 1. `docker compose up -d --build` sur votre machine ou votre NAS.
-2. Notez l'IP que les étudiants doivent viser.
+2. Notez l'IP que les étudiants doivent viser — `ip route get 1.1.1.1` affiche
+   l'IP de sortie, c'est celle à diffuser.
 3. Projetez `http://<IP>:8000` : c'est le portail, il se met à jour tout seul.
-4. Vérifiez que les postes ont Docker (`docker run hello-world`).
+4. **Vérifiez que les postes ont Docker** : `docker run --rm hello-world`.
+5. **Testez la mission 1 sur un poste étudiant.** C'est le parcours que tout le
+   monde suit en premier, et le seul qui ne marche pas chez soi.
+
+### Deux pièges connus
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `Bind for 0.0.0.0:8080 failed` | missions 12-15, ports 8080/8081/8082/9090 : deux binômes sur le même poste | un poste par binôme |
+| `Conflict. The container name "/…" is already in use` | un essai interrompu a laissé le conteneur | les commandes sont rejouables, le `docker rm` en tête les gère |
 
 ### Pendant le TP
 
@@ -184,6 +259,27 @@ Le portail affiche en direct :
 - **Ligue Compétitive** — podium 🥇🥈🥉, score, progression mission par mission
 - **Mode Normal** — liste d'émargement avec statut « En cours » / « Achevé ✅ »
 - **Inscription rapide** — pour les retards, sans passer par le jeu
+
+### En ligne de commande
+
+Tout le jeu se joue aussi au terminal, sans navigateur. Le mémento est dans
+l'application (bouton `?`), avec le jeton déjà rempli.
+
+```bash
+# S'inscrire (compétitif)
+curl -X POST http://<IP>:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"team":"CyberPhoenix","mode":"competitive"}'
+
+# Récupérer le mot de passe de la mission 1, depuis un conteneur
+docker run --rm alpine sh -c "wget -qO- http://<IP>:8000/api/secret/m1-01-image-ou-conteneur/raw?t=dq_..."
+
+# Le valider
+curl -X POST http://<IP>:8000/api/submit \
+  -H "Content-Type: application/json" \
+  -H "X-Arena-Token: dq_..." \
+  -d '{"flag":"FLAG{...}"}'
+```
 
 ### Après le TP
 
@@ -272,7 +368,15 @@ npm start            # http://localhost:8000
 npm test                  # 90 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
-npm run smoke -- http://localhost:8000   # joue les 26 missions et affiche le barème
+npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
+npm run check-fetchhints -- http://<IP>:8000 # REJOUE les 26 commandes pour de vrai
+```
+
+> **`npm run check-fetchhints` est le seul test qui prouve que le jeu marche
+> sur une vraie machine.** Il crée un joueur, exécute la commande de
+> récupération de chacune des 26 missions dans un conteneur jetable, et
+> affiche le temps de chacune. Lancez-le sur un **poste étudiant** avant un
+> TP — c'est là que ça échoue, pas sur le serveur.
 ```
 
 ### Ajouter une mission
