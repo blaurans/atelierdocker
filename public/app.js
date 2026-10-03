@@ -256,7 +256,7 @@ function renderNormal(rows) {
   const body = $('#normBody');
   body.textContent = '';
   if (!rows.length) {
-    body.appendChild(emptyRow(4, 'Aucun étudiant inscrit.'));
+    body.appendChild(emptyRow(5, 'Aucun étudiant inscrit.'));
     return;
   }
   for (const row of rows) {
@@ -277,8 +277,25 @@ function renderNormal(rows) {
     tr.appendChild(status);
 
     tr.appendChild(el('td', 'c-right dim', row.last_submission));
+    tr.appendChild(el('td', 'c-right', cellIp(row.last_ip)));
     body.appendChild(tr);
   }
+}
+
+/**
+ * Le poste du dernier appel, en IPv4 lisible.
+ *
+ * `::ffff:192.168.38.42` est la forme que renvoie le noyau pour une
+ * connexion IPv4 ; on n'en garde que la partie utile. Les adresses loopback ne
+ * servent à rien pour l'enseignant — tout le monde est sur 127.0.0.1 en local.
+ */
+function cellIp(ip) {
+  if (!ip) return el('span', 'ip-cell dim', '—');
+  const v4 = ip.replace(/^::ffff:/, '');
+  const locale = /^(127\.|::1$|0\.0\.0\.0$)/.test(v4);
+  const span = el('span', `ip-cell${locale ? ' dim' : ''}`, v4);
+  span.title = 'Poste du dernier appel';
+  return span;
 }
 
 /** Pastilles 1..N : remplies si validées. Rendue compacte au-delà de 20. */

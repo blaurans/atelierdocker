@@ -28,12 +28,13 @@ test.after(() => {
   db.close();
 });
 
-const api = async (path, { method = 'GET', body, token } = {}) => {
+const api = async (path, { method = 'GET', body, token, headers = {} } = {}) => {
   const res = await fetch(base + path, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { 'X-Arena-Token': token } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -264,6 +265,36 @@ test('un visiteur anonyme ne reçoit aucune correction', async () => {
   const q = (await api('/api/quests')).json;
   const flat = q.modules.flatMap((m) => m.quests);
   assert.ok(flat.every((x) => x.solution === null));
+});
+
+test('le tableau de suivi indique le poste de chaque joueur', async () => {
+  wipe();
+  await api('/api/register', { method: 'POST', body: { team: 'DepuisPoste', mode: 'normal' } });
+
+  const ov = (await api('/api/overview')).json;
+  const row = ov.normal.find((p) => p.team === 'DepuisPoste');
+  assert.ok(row, 'le joueur doit apparaître au suivi');
+  assert.ok('last_ip' in row, 'le suivi doit exposer le poste');
+  // Le test tourne en local : on ne peut pas exiger l'adresse du poste réel,
+  // seulement que le serveur en a bien une et qu'elle a la forme d'une IP.
+  assert.match(String(row.last_ip), /^\d+\.\d+\.\d+\.\d+$|^\[?::/,
+    `IP inattendue : ${row.last_ip}`);
+});
+
+test('un X-Forwarded-For forgé ne maquille pas le poste', async () => {
+  wipe();
+  await api('/api/register', { method: 'POST', body: { team: 'Forge', mode: 'normal' } });
+
+  const avant = (await api('/api/overview')).json.normal
+    .find((p) => p.team === 'Forge').last_ip;
+
+  // TRUST_PROXY vaut off dans les tests : l'en-tête ne doit avoir aucun effet.
+  await api('/api/overview', { headers: { 'X-Forwarded-For': '8.8.8.8' } });
+
+  const apres = (await api('/api/overview')).json.normal
+    .find((p) => p.team === 'Forge').last_ip;
+  assert.notEqual(apres, '8.8.8.8', 'une IP forgée ne doit jamais être retenue');
+  assert.equal(apres, avant);
 });
 
 test('sans token, submit et me sont refusés', async () => {

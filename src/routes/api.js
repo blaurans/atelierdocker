@@ -2,7 +2,7 @@ import express from 'express';
 import { db } from '../db.js';
 import { config, isMode } from '../config.js';
 import { HttpError, requirePlayer, requireAdmin, identify } from '../auth.js';
-import { __plafonds as plafonds } from '../ratelimit.js';
+import { __plafonds as plafonds, clientIp } from '../ratelimit.js';
 import { quests, reloadQuestpack } from '../questpack.js';
 import { rank, positionOf } from '../scoring.js';
 import { overview, liveHandler, announce } from '../portal.js';
@@ -108,7 +108,7 @@ api.post('/register', plafonds.register, (req, res, next) => {
       });
     }
 
-    const player = createPlayer({ team, mode, secret });
+    const player = createPlayer({ team, mode, secret, ip: clientIp(req) });
     logEvent(player.id, 'register', mode);
     announce(`register:${player.team}`);
 

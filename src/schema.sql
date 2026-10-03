@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS players (
   created_at    TEXT    NOT NULL,
   registered_at TEXT    NOT NULL,          -- HH:MM:SS, pour l'affichage du portail
   last_seen     TEXT    NOT NULL,
+  last_ip       TEXT    NOT NULL DEFAULT '',   -- poste du dernier appel
   last_submit   TEXT    NOT NULL DEFAULT '-',
   finished_at   TEXT,
   attested      TEXT    NOT NULL DEFAULT ''  -- JSON: { questId: true }

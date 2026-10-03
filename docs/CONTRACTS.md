@@ -218,7 +218,8 @@ client construit sur le PDF ignore sans casse.
                      "finished": false,
                      // ajouts :
                      "rank": 1, "progress": "3/26", "registered_at": "13:58:00",
-                     "quests": ["m1-01-…", …], "last_quest": "m4-04-…" } ],
+                     "quests": ["m1-01-…", …], "last_quest": "m4-04-…",
+                     "last_ip": "192.168.38.42" } ],
   "normal":      [ { "team": "…", "mode": "normal", "score": 0,
                      "completed": [1,2,3], "last_submission": "14:03:00",
                      "finished": false, "progress": "3/26" } ],
@@ -232,6 +233,13 @@ client construit sur le PDF ignore sans casse.
 Les cinq champs que le PDF attend (`team`, `mode`, `score`, `completed`,
 `last_submission`, `finished`) sont tous présents et ont exactement le même
 sens qu'à l'origine.
+
+`last_ip` est le poste du **dernier appel** du joueur, pas celui de son
+inscription. L'enseignant s'en sert pour savoir quelle machine est derrière
+quel binôme. Elle n'est lue depuis `X-Forwarded-For` que si `TRUST_PROXY=1` :
+sans proxy réel, se fier à cet en-tête permettrait à un étudiant de maquiller son
+adresse. Une base créée avant l'existence de la colonne affiche `null` — la
+migration l'ajoute au démarrage.
 
 ### 2.3 bis Accès aux missions
 

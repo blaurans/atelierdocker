@@ -86,4 +86,23 @@ fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8')
   .filter(Boolean)
   .forEach((stmt) => raw.exec(stmt));
 
+/**
+ * Migrations « j'ajoute une colonne ».
+ *
+ * `CREATE TABLE IF NOT EXISTS` ne modifie pas une table existante : une base
+ * créée avant une évolution resterait sans la nouvelle colonne, et le premier
+ * `SELECT` lèverait une erreur. On ajoute donc les colonnes manquantes au
+ * démarrage, ce qui rend le déploiement d'une version à l'autre sans étape
+ * manuelle.
+ */
+function ajouterColonneSiAbsente(table, colonne, definition) {
+  const colonnes = raw.prepare(`PRAGMA table_info(${table})`).all();
+  if (colonnes.some((c) => c.name === colonne)) return false;
+  raw.exec(`ALTER TABLE ${table} ADD COLUMN ${colonne} ${definition}`);
+  log(`migration : ${table}.${colonne} ajoutée`);
+  return true;
+}
+
+ajouterColonneSiAbsente('players', 'last_ip', "TEXT NOT NULL DEFAULT ''");
+
 export { config, ROOT };

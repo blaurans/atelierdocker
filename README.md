@@ -257,8 +257,13 @@ podium, bonus de rapidité, malus pour faux flag.
 Le portail affiche en direct :
 
 - **Ligue Compétitive** — podium 🥇🥈🥉, score, progression mission par mission
-- **Mode Normal** — liste d'émargement avec statut « En cours » / « Achevé ✅ »
+- **Mode Normal** — liste d'émargement avec statut « En cours » / « Achevé ✅ »,
+  et **le poste (IP) du dernier appel** de chaque binôme
 - **Inscription rapide** — pour les retards, sans passer par le jeu
+
+La colonne IP sert à retrouver un poste : quand un binôme bloque et que vous ne
+savez plus sur quelle machine il est, la liste vous y renvoie. Ce n'est pas une
+surveillance — seule l'adresse est mémorisée, jamais ce que l'étudiant fait.
 
 ### En ligne de commande
 

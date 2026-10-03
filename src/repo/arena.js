@@ -3,8 +3,8 @@ import { db, now, clock, newToken } from '../db.js';
 /* ------------------------------------------------------------------ players */
 
 const insertPlayer = db.prepare(`
-  INSERT INTO players (team, mode, token, secret, created_at, registered_at, last_seen)
-  VALUES (@team, @mode, @token, @secret, @at, @hh, @at)
+  INSERT INTO players (team, mode, token, secret, last_ip, created_at, registered_at, last_seen)
+  VALUES (@team, @mode, @token, @secret, @ip, @at, @hh, @at)
 `);
 
 const byTeam = db.prepare('SELECT * FROM players WHERE team = ? COLLATE NOCASE');
@@ -13,7 +13,7 @@ const byToken = db.prepare('SELECT * FROM players WHERE token = ?');
 export const findByTeam = (team) => byTeam.get(String(team ?? '').trim());
 export const findByToken = (token) => (token ? byToken.get(String(token).trim()) : undefined);
 
-export function createPlayer({ team, mode, secret = '' }) {
+export function createPlayer({ team, mode, secret = '', ip = '' }) {
   const at = now();
   const hh = clock();
   const info = insertPlayer.run({
@@ -21,14 +21,20 @@ export function createPlayer({ team, mode, secret = '' }) {
     mode,
     token: newToken(),
     secret: secret || '',
+    ip: ip || '',
     at,
     hh,
   });
   return db.prepare('SELECT * FROM players WHERE id = ?').get(info.lastInsertRowid);
 }
 
-export function touch(id) {
-  db.prepare('UPDATE players SET last_seen = ? WHERE id = ?').run(now(), id);
+export function touch(id, ip = null) {
+  if (ip) {
+    db.prepare('UPDATE players SET last_seen = ?, last_ip = ? WHERE id = ?')
+      .run(now(), ip, id);
+  } else {
+    db.prepare('UPDATE players SET last_seen = ? WHERE id = ?').run(now(), id);
+  }
 }
 
 export function setScore(id, score) {

@@ -79,7 +79,17 @@ export function rateLimit({ limit = 30, windowMs = 60_000, prefix = 'g' } = {}) 
  * donc activer `TRUST_PROXY=1` uniquement si l'on place réellement un proxy
  * devant le portail.
  */
-function clientIp(req) {
+/**
+ * Adresse du client. Exportée parce que le portail l'affiche dans le tableau
+ * de suivi : l'enseignant a besoin de savoir quel poste est derrière quel
+ * binôme quand un élève ne répond pas.
+ *
+ * `X-Forwarded-For` n'est lu que si `TRUST_PROXY` est explicitement activé :
+ * le portail tourne directement sur le port 8000, sans reverse proxy. Dans ce
+ * cas se fier à l'en-tête serait une faille — un client enverrait l'IP de son
+ * choix.
+ */
+export function clientIp(req) {
   if (TRUST_PROXY) {
     const fwd = req.get('x-forwarded-for');
     if (fwd) {

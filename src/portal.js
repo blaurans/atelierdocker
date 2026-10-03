@@ -24,6 +24,11 @@ export function overview() {
       // champs additionnels, ignorés par un client construit sur le PDF.
       quests: done.map((c) => c.quest_id),
       last_quest: done.at(-1)?.quest_id ?? null,
+      // Poste du dernier appel : indispensable pour l'enseignant, qui doit
+      // savoir quel machine est derrière quel binôme quand un élève ne
+      // répond pas. `null` si l'on n'a aucune information (joueur jamais
+      // revenu, ou base créée avant l'existence de cette colonne).
+      last_ip: p.last_ip || null,
     };
   });
 

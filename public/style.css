@@ -225,6 +225,9 @@ code, pre, .mono { font-family: var(--mono); }
 .score-cell { font-family: var(--mono); font-weight: 700; color: var(--amber); font-size: 1rem; }
 .empty { text-align: center; color: var(--fg-dim); padding: 2rem !important; font-style: italic; }
 
+/* Poste du dernier appel : monospace, discret, aligné à droite. */
+.ip-cell { font-family: var(--mono); font-size: 0.78rem; color: var(--fg-dim); white-space: nowrap; }
+
 .badge {
   display: inline-block; margin-left: 0.5rem; padding: 0.1rem 0.5rem;
   border-radius: 999px; font-size: 0.66rem; font-weight: 700; letter-spacing: .06em;

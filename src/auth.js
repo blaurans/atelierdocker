@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { clientIp } from './ratelimit.js';
 import { findByToken, findByTeam, touch } from './repo/arena.js';
 
 /** Erreur HTTP portant un statut, attrapée par le middleware d'erreur. */
@@ -35,7 +36,9 @@ export function identify(req) {
     || null;
   const byToken = findByToken(token);
   if (byToken) {
-    touch(byToken.id);
+    // On mémorise le poste : l'enseignant voit ainsi quel machine est
+    // derrière quel binôme dans le tableau de suivi.
+    touch(byToken.id, clientIp(req));
     return byToken;
   }
 
@@ -46,8 +49,11 @@ export function identify(req) {
   if (team) {
     const p = findByTeam(team);
     if (p) {
-      if (!p.secret) return p;            // pas de secret : slot public (cf. README)
-      if (secret && p.secret === String(secret)) { touch(p.id); return p; }
+      if (!p.secret) { touch(p.id, clientIp(req)); return p; }   // slot public
+      if (secret && p.secret === String(secret)) {
+        touch(p.id, clientIp(req));
+        return p;
+      }
     }
   }
   return null;
