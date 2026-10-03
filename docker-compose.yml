@@ -1,0 +1,59 @@
+# Portail Docker Ops Race.
+#
+#   docker compose up -d --build
+#   → http://<IP>:8000
+#
+# Pour le déplacer ailleurs : copier ce dossier et ce fichier, rien d'autre.
+
+services:
+  arena:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docker-ops-race:1.0
+    container_name: docker_ops_race
+    restart: unless-stopped
+    ports:
+      - "${ARENA_PORT:-8000}:8000"
+    environment:
+      NODE_ENV: production
+      PORT: "8000"
+      # Base sur un volume nommé : les scores survivent à un `down` / `up`.
+      DB_FILE: /data/arena.sqlite
+      # Clé d'administration pour /api/stats et /api/admin/*. Laisser vide
+      # rend l'administration ouverte : pratique en salle, à fermer ensuite.
+      ADMIN_KEY: "${ARENA_ADMIN_KEY:-}"
+      # 1 = un flag correct reste « en attente » jusqu'à validation manuelle
+      # de l'enseignant. Voir README § Limites.
+      REQUIRE_ATTESTATION: "${ARENA_ATTESTATION:-0}"
+      # Guidage d'affichage. 0 (défaut) = tout est accessible d'emblée, on
+      # peut sauter une mission et y revenir. 1 = le plan ne montre que la
+      # mission suivante. Ce n'est pas une contrainte serveur : /api/submit
+      # n'accepte que le flag dans les deux cas (voir ARENA_ATTESTATION pour
+      # une vraie contrainte).
+      LINEAR_PROGRESSION: "${ARENA_LINEAR:-0}"
+      # Plafonds de débit par IP et par route (fenêtre d'une minute).
+      # `off` désactive tout plafond.
+      RATE_LIMIT: "${ARENA_RATE_LIMIT:-on}"
+      # 1 seulement derrière un vrai reverse proxy : le comptage se fait alors
+      # sur X-Forwarded-For, forgeable si le portail est exposé directement.
+      TRUST_PROXY: "${ARENA_TRUST_PROXY:-}"
+    volumes:
+      - arena-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  arena-data:
+    name: docker-ops-race-data

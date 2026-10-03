@@ -1,0 +1,176 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { quests } from '../src/questpack.js';
+
+/**
+ * Ces tests portent sur la qualité pédagogique du contenu, pas sur son
+ * fonctionnement : ils protègent les six missions du cahier des charges et
+ * les invariants qui rendent le parcours utilisable en cours.
+ */
+
+const pack = quests();
+const all = pack.quests;
+
+test('les six missions originales sont bien présentes, au bon endroit', () => {
+  const attendues = [
+    { flag: 'FLAG{HELLO_DOCKER_ENGINE_RUNNING}', titre: 'Initial Boot', module: 2 },
+    { flag: 'FLAG{ALPINE_SH_INSPECTION_HERO}', titre: 'Infiltration Interactive', module: 3 },
+    { flag: 'FLAG{PORT_MAPPING_WEB_EXPERT_8080}', titre: 'Port Master', module: 4 },
+    { flag: 'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}', titre: 'Image Alchemist', module: 5 },
+    { flag: 'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}', titre: 'Persistence Guardian', module: 6 },
+    { flag: 'FLAG{COMPOSE_ORCHESTRATION_TITAN}', titre: 'Compose Overlord', module: 7 },
+  ];
+  for (const a of attendues) {
+    const q = pack.byFlag.get(a.flag);
+    assert.ok(q, `mission absente : ${a.flag}`);
+    assert.equal(q.title, a.titre);
+    assert.equal(q.module, a.module, `${a.titre} : module ${q.module} au lieu de ${a.module}`);
+    assert.ok(q.flagship, `${a.titre} : doit être une quête phare`);
+  }
+});
+
+test('le parcours est progressif : chaque module dépend du précédent', () => {
+  const modules = pack.modules.map((m) => m.module);
+  assert.deepEqual(modules, [1, 2, 3, 4, 5, 6, 7]);
+  for (const m of pack.modules) {
+    assert.ok(m.quests.length >= 3, `module ${m.module} : seulement ${m.quests.length} quêtes`);
+    m.quests.forEach((q, i) => assert.equal(q.order, i + 1, `${m.module} : ordre non contigu`));
+  }
+});
+
+test('chaque quête est auto-suffisante : objectif, énoncé et correction', () => {
+  for (const q of all) {
+    assert.ok(q.brief.trim().length >= 150, `${q.id} : énoncé trop court (${q.brief.length})`);
+    assert.ok(q.checkpoint.length >= 15, `${q.id} : checkpoint trop vague`);
+    assert.ok(q.solution.trim().length >= 20, `${q.id} : correction absente ou trop courte`);
+    assert.ok(q.teaches.length >= 1, `${q.id} : aucun mot-clé travaillé`);
+  }
+});
+
+test('le mot de passe n\'est écrit nulle part, et l\'énoncé le dit', () => {
+  for (const q of all) {
+    // Le cœur du mécanisme : le secret est le résultat du travail. Écrit dans
+    // l'énoncé, il se recopie et ne prouve rien.
+    assert.ok(!q.brief.includes(q.flag),
+      `${q.id} : le mot de passe est écrit dans l'énoncé`);
+    assert.doesNotMatch(q.brief, /écrit dans l'énoncé|affiché ci-dessus|il ne s'agit pas de le deviner/i,
+      `${q.id} : l'énoncé promet encore que le mot de passe est affiché`);
+
+    // Et l'étudiant doit comprendre où le trouver : c'est indispensable,
+    // sinon la consigne devient un mur.
+    assert.match(q.brief, /mot de passe/i,
+      `${q.id} : l'énoncé ne parle même pas du mot de passe`);
+    assert.match(q.brief, /api\/secret/,
+      `${q.id} : l'énoncé ne renvoie pas à la commande de récupération`);
+  }
+});
+
+test('les six missions historiques gardent leurs techniques', () => {
+  // Les 6 missions du cahier des charges : titre, module et barème inchangés,
+  // mais le mot de passe n'est plus affiché — il se récupère par une commande.
+  const attendues = {
+    'FLAG{HELLO_DOCKER_ENGINE_RUNNING}': ['Initial Boot', 2],
+    'FLAG{ALPINE_SH_INSPECTION_HERO}': ['Infiltration Interactive', 3],
+    'FLAG{PORT_MAPPING_WEB_EXPERT_8080}': ['Port Master', 4],
+    'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': ['Image Alchemist', 5],
+    'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}': ['Persistence Guardian', 6],
+    'FLAG{COMPOSE_ORCHESTRATION_TITAN}': ['Compose Overlord', 7],
+  };
+  for (const [flag, [titre, module]] of Object.entries(attendues)) {
+    const q = pack.byFlag.get(flag);
+    assert.ok(q, `mission historique absente : ${flag}`);
+    assert.equal(q.title, titre);
+    assert.equal(q.module, module);
+    assert.ok(q.fetchHint.includes('/raw'), `${titre} : fetchHint manquant`);
+  }
+});
+
+test('chaque module récupère son secret par sa propre technique', () => {
+  // Le point pédagogique : on cherche le mot de passe avec la commande que
+  // le module vient d'enseigner, pas avec une commande générique.
+  const attendus = {
+    1: /cat\b|\/etc\//,                    // lire un fichier dans un conteneur
+    2: /docker\s+run/,                     // la sortie d'un conteneur lancé
+    3: /docker\s+(exec|cp)\b/,             // entrer dans un conteneur en marche
+    4: /curl|wget|ports?\b/,               // requête HTTP vers un port publié
+    5: /docker\s+(run|build)\b/,           // son conteneur, son image
+    6: /docker\s+(volume|run)\b/,          // volume relu par un autre conteneur
+    7: /docker\s+compose/,                 // les journaux de la pile
+  };
+  for (const m of pack.modules) {
+    for (const q of m.quests) {
+      assert.match(q.fetchHint, attendus[m.module],
+        `${q.id} : la commande ne mobilise pas la technique du module ${m.module}`);
+    }
+  }
+});
+
+test('les six missions gardent leurs commandes clés du cahier des charges', () => {
+  const attendues = {
+    'FLAG{HELLO_DOCKER_ENGINE_RUNNING}': [/docker\s+version/, /docker\s+run\s+hello-world/, /busybox/],
+    'FLAG{ALPINE_SH_INSPECTION_HERO}': [/docker\s+run\s+-it/, /alpine/, /\bid\b/, /docker\s+rm/],
+    'FLAG{PORT_MAPPING_WEB_EXPERT_8080}': [/-p\s+8080:80/, /nginx/, /docker\s+exec/, /curl/],
+    'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': [/Dockerfile/, /docker\s+build/, /EXPOSE/],
+    'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}': [/docker\s+volume\s+create/, /-v\s+vault_data/, /docker\s+volume\s+rm/],
+    'FLAG{COMPOSE_ORCHESTRATION_TITAN}': [/docker[-\s]compose\s+up\s+-d/, /redis/, /docker\s+compose\s+down/],
+  };
+  for (const [flag, motifs] of Object.entries(attendues)) {
+    const q = pack.byFlag.get(flag);
+    const texte = `${q.brief}\n${q.solution}\n${q.hints.join('\n')}`;
+    for (const m of motifs) {
+      assert.match(texte, m, `${q.title} : commande attendue non trouvée (${m})`);
+    }
+  }
+});
+
+test('durée : chaque module est jouable en une séance', () => {
+  // Chiffre réel aujourd'hui : la somme des estimations vaut ~430 min, soit
+  // environ 7 h. C'est la durée d'un parcours complet pour un débutant qui
+  // découvre Docker, pas celle d'un seul TP. Le test verrouille donc la
+  // contrainte qui compte en pratique : aucun module ne doit dépasser la
+  // longueur d'une séance de 2 h, pour rester découpable en plusieurs cours.
+  const MINUTES = 120;
+  for (const m of pack.modules) {
+    const total = m.quests.reduce((a, q) => a + q.estMinutes, 0);
+    assert.ok(total <= MINUTES, `module ${m.module} : ${total} min, à découper`);
+  }
+});
+
+test('durée : la répartition est cohérente avec les six missions du PDF', () => {
+  // Les six missions phares reprennent les minutages du cahier des charges,
+  // qui annonçait 90 à 120 min pour l'ensemble des six.
+  const vedettes = pack.quests.filter((q) => q.flagship);
+  const total = vedettes.reduce((a, q) => a + q.estMinutes, 0);
+  assert.ok(total >= 60 && total <= 180, `les 6 missions valent ${total} min`);
+});
+
+test('le mode normal ne peut pas recevoir de temps via l\'API', () => {
+  // Garde-fou : le temps n'est utile que si le serveur ne le renvoie jamais
+  // en mode normal. Ce comportement est vérifié côté API dans api.test.js.
+  for (const q of all) {
+    assert.equal(typeof q.estMinutes, 'number');
+  }
+});
+
+test('les indices sont ordonnés du plus flou au plus direct', () => {
+  for (const q of all) {
+    if (q.hints.length === 3) {
+      const dernier = q.hints[2].length;
+      assert.ok(dernier > 0);
+    }
+  }
+});
+
+test('aucun flag ne se ressemble assez pour créer une confusion', () => {
+  const flags = all.map((q) => q.flag);
+  for (const a of flags) {
+    for (const b of flags) {
+      if (a === b) continue;
+      // Deux flags ne doivent pas différer d'un seul caractère : une faute de
+      // frappe serait alors indétectable à l'œil.
+      const d = Math.abs(a.length - b.length);
+      const similar = a.length === b.length && [...a].filter((c, i) => c !== b[i]).length <= 2;
+      assert.ok(!(similar && d === 0), `flags trop proches : ${a} et ${b}`);
+    }
+  }
+});

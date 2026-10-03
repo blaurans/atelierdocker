@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docker Ops Race — The Container Arena</title>
+<meta name="description" content="Serious game d'apprentissage de Docker. 7 modules, 26 quêtes, mode compétitif ou mode normal.">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐳</text></svg>">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ PORTAL (vue enseignant) -->
+<div id="portal" class="screen">
+  <header class="portal-head">
+    <div class="wrap head-row">
+      <div>
+        <h1 class="brand"><span class="bolt">🐳</span> DOCKER OPS RACE <span class="sep">//</span> <span class="thin">CONTAINER ARENA</span></h1>
+        <p class="tagline">Serious game · 7 modules · <span id="questCount">…</span> quêtes · <span id="totalPoints">…</span> points</p>
+      </div>
+      <div class="head-actions">
+        <span class="live-dot" id="liveDot"><i></i><span id="liveLabel">connexion…</span></span>
+        <a class="btn btn-ghost" href="#/">✈ Jouer</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap portal-body">
+
+    <!-- Podium -->
+    <section class="panel panel-amber">
+      <div class="panel-head">
+        <h2><span class="ico">🏆</span> Ligue Compétitive</h2>
+        <span class="panel-sub">Classé au score · bonus de rapidité</span>
+      </div>
+      <div id="podium" class="podium"></div>
+      <div class="table-scroll">
+        <table class="board">
+          <thead><tr>
+            <th class="c-rank">#</th><th>Équipe</th>
+            <th class="c-mid">Progression</th>
+            <th class="c-mid">Score</th>
+            <th class="c-right">Dernier flag</th>
+          </tr></thead>
+          <tbody id="compBody"><tr><td colspan="5" class="empty">Aucun compétitif inscrit.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Suivi normal -->
+    <section class="panel panel-emerald">
+      <div class="panel-head">
+        <h2><span class="ico">🧘</span> Mode Normal — Suivi d'achèvement</h2>
+        <span class="panel-sub">Progression individuelle · aucun chrono, aucun score</span>
+      </div>
+      <div class="table-scroll">
+        <table class="board">
+          <thead><tr>
+            <th>Étudiant / Binôme</th>
+            <th class="c-mid">Quêtes validées</th>
+            <th class="c-mid">Statut du lab</th>
+            <th class="c-right">Dernière action</th>
+          </tr></thead>
+          <tbody id="normBody"><tr><td colspan="4" class="empty">Aucun étudiant inscrit.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Inscription express (équivalent du formulaire du cahier des charges) -->
+    <section class="panel panel-cyan" id="register-section">
+      <div class="panel-head"><h2><span class="ico">📝</span> Inscription rapide</h2></div>
+      <form class="reg-row" id="regForm">
+        <input id="inTeam" type="text" placeholder="Pseudo ou nom d'équipe" autocomplete="off" required minlength="2" maxlength="32">
+        <select id="inMode">
+          <option value="competitive">⚡ Compétitif — points + vitesse</option>
+          <option value="normal">🧘 Normal — sans pression</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Rejoindre le lab</button>
+      </form>
+      <p class="reg-msg" id="regMsg"></p>
+      <details class="curl-help">
+        <summary>Ou depuis le terminal, en <code>curl</code></summary>
+        <pre><code id="curlExamples"></code></pre>
+      </details>
+    </section>
+
+    <footer class="portal-foot">
+      <span>👨‍🏫 <a href="#/">espace joueur</a></span>
+      <span>·</span>
+      <span>🏁 Docker en local sur chaque poste</span>
+    </footer>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════ JEU (vue étudiant) -->
+<div id="game" class="screen" hidden>
+
+  <!-- Choix du mode / connexion -->
+  <div id="gate" class="gate">
+    <div class="gate-card">
+      <div class="gate-brand"><span>🐳</span> DOCKER OPS RACE</div>
+      <p class="gate-sub">Choisis ton mode. Les deux parcours sont identiques — seuls la pression et le score changent.</p>
+
+      <div class="mode-pick">
+        <button class="mode mode-comp" data-mode="competitive" type="button">
+          <div class="mode-top"><span class="mode-ico">⚡</span><span class="mode-badge">COMPÉTITIF</span></div>
+          <h3>Course contre la montre</h3>
+          <ul>
+            <li><b>Chrono</b> par quête, visible en permanence</li>
+            <li><b>Score</b> de 100 à 600 pts par mission</li>
+            <li><b>Bonus de rapidité</b> pour les premiers (60 / 30 / 15)</li>
+            <li>Podium en direct, mis à jour en temps réel</li>
+          </ul>
+          <div class="mode-go">Entrer dans l'arène →</div>
+        </button>
+
+        <button class="mode mode-norm" data-mode="normal" type="button">
+          <div class="mode-top"><span class="mode-ico">🧘</span><span class="mode-badge">NORMAL</span></div>
+          <h3>Apprentissage serein</h3>
+          <ul>
+            <li><b>Aucun chrono</b>, jamais affiché</li>
+            <li><b>Aucun score</b>, jamais calculé</li>
+            <li>Les mêmes 26 missions, dans le même ordre</li>
+            <li>Tu reprends où tu t'es arrêté, quand tu veux</li>
+          </ul>
+          <div class="mode-go">Commencer à apprendre →</div>
+        </button>
+      </div>
+
+      <form class="gate-form" id="gateForm" hidden>
+        <label for="gTeam">Pseudo ou nom d'équipe</label>
+        <input id="gTeam" type="text" placeholder="ex. CyberPhoenix" autocomplete="off" required minlength="2" maxlength="32">
+        <label for="gSecret">Secret <span class="opt">(optionnel)</span></label>
+        <input id="gSecret" type="text" placeholder="pour protéger ton pseudo" autocomplete="off">
+        <p class="gate-mode">Mode choisi : <b id="gateModeLabel"></b> <button type="button" class="linkish" id="changeMode">changer</button></p>
+        <button class="btn btn-primary btn-lg" type="submit">Entrer dans le lab</button>
+        <p class="reg-msg" id="gateMsg"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Parcours -->
+  <div id="play" hidden>
+    <header class="play-head">
+      <div class="wrap head-row">
+        <div class="play-id">
+          <span class="team-name" id="teamName">—</span>
+          <span class="chip" id="modeChip">—</span>
+          <span class="since" id="sinceTag"></span>
+          <button class="token-chip" id="tokenChip" type="button"
+                  title="Copier mon jeton d'API">…</button>
+        </div>
+        <div class="play-stats">
+          <div class="stat" id="statScore" hidden><span class="stat-k">Score</span><span class="stat-v" id="scoreVal">0</span></div>
+          <div class="stat" id="statRank" hidden><span class="stat-k">Rang</span><span class="stat-v" id="rankVal">—</span></div>
+          <div class="stat" id="statProgress"><span class="stat-k">Progression</span><span class="stat-v" id="progressVal">0/0</span></div>
+          <button class="btn btn-ghost btn-sm" id="btnHelp">? Aide</button>
+          <button class="btn btn-ghost btn-sm" id="btnQuit">Quitter</button>
+        </div>
+      </div>
+      <div class="progress-rail"><div id="rail"></div></div>
+    </header>
+
+    <main class="wrap play-body">
+      <aside class="side-col">
+        <section class="quest-map" id="questMap" aria-label="Plan du parcours"></section>
+        <section class="history" id="historyBox" aria-label="Mes résultats"></section>
+      </aside>
+
+      <section class="quest-panel" id="questPanel"></section>
+    </main>
+  </div>
+</div>
+
+<!-- Aide / mémento -->
+<dialog id="helpDlg" class="dlg">
+  <div class="dlg-head">
+    <h2>Mémento des commandes</h2>
+    <button class="btn btn-ghost btn-sm" id="closeHelp">✕</button>
+  </div>
+  <div class="dlg-body">
+    <p class="dlg-note">Ces commandes se tapent dans <b>ton</b> terminal, sur ta machine — pas ici. Le portail ne sert qu'à valider tes flags.</p>
+    <div class="table-scroll">
+      <table class="board compact"><tbody id="cmdBody"></tbody></table>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- md.js est importé en module par app.js ; pas de balise script ici. -->
+<script type="module" src="/app.js"></script>
+</body>
+</html>

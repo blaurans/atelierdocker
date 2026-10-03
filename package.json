@@ -1,0 +1,25 @@
+{
+  "name": "docker-ops-race",
+  "version": "1.0.0",
+  "description": "Docker Ops Race : The Container Arena — serious game d'apprentissage de Docker en binômes, mode compétitif ou mode normal.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning src/server.js",
+    "dev": "node --no-warnings=ExperimentalWarning --watch src/server.js",
+    "seed": "node --no-warnings=ExperimentalWarning scripts/seed.js",
+    "check-content": "node scripts/check-content.js",
+    "smoke": "node scripts/smoke.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "linkedom": "^0.18.12"
+  }
+}
