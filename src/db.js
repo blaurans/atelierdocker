@@ -104,5 +104,6 @@ function ajouterColonneSiAbsente(table, colonne, definition) {
 }
 
 ajouterColonneSiAbsente('players', 'last_ip', "TEXT NOT NULL DEFAULT ''");
+ajouterColonneSiAbsente('players', 'last_submit_at', 'TEXT');
 
 export { config, ROOT };

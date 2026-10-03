@@ -29,6 +29,11 @@ export function overview() {
       // répond pas. `null` si l'on n'a aucune information (joueur jamais
       // revenu, ou base créée avant l'existence de cette colonne).
       last_ip: p.last_ip || null,
+      // Horodatage complet de la DERNIÈRE soumission, en UTC. Le client le
+      // convertit dans le fuseau du poste qui affiche : le conteneur est en
+      // UTC, la salle ne l'est pas. `last_seen` ne conviendrait pas — c'est
+      // l'heure de n'importe quel appel, pas d'une validation.
+      last_submit_iso: p.last_submit_at || null,
     };
   });
 

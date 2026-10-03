@@ -185,6 +185,7 @@ async function loadClient() {
     'location', 'confirm', 'EventSource', 'fetch', 'setTimeout', 'clearTimeout',
     'hashListeners',
     `${source}
+globalThis.__dqEl = el;
 return { route, renderPortal, bootPlayer, openQuest, listeners: hashListeners, state };`);
 
   return factory(renderMarkdown, globalThis.document, globalThis.localStorage,
@@ -193,6 +194,68 @@ return { route, renderPortal, bootPlayer, openQuest, listeners: hashListeners, s
 }
 
 // ══════════════════════════════════════════════════════════════════ tests
+
+test('el() refuse un nœud DOM comme texte', async () => {
+  // C'était le bug « [object HTMLSpanElement] » : passer un élément à `textContent`
+  // y met la classe de l'objet. On vérifie le garde-fou directement sur la
+  // fonction exportée pour test, plutôt que de le déduire du rendu.
+  stubFetch();
+  await loadClient();
+  assert.throws(
+    () => globalThis.__dqEl('td', null, globalThis.document.createElement('span')),
+    TypeError,
+    'el() doit refuser un nœud plutôt que de l\'afficher comme du texte',
+  );
+  assert.equal(globalThis.__dqEl('td', null, 'texte').textContent, 'texte');
+});
+
+test('le portail n\'affiche jamais [object HTMLSpanElement]', async () => {
+  stubFetch();
+  const { renderPortal } = await loadClient();
+  renderPortal(overviewPayload());
+
+  // Les deux tableaux, toutes cellules confondues.
+  for (const zone of ['#compBody', '#normBody']) {
+    for (const td of $$(`${zone} td`)) {
+      assert.doesNotMatch(td.textContent, /\[object HTML/i,
+        `${zone} : une cellule affiche un objet au lieu de son contenu`);
+    }
+  }
+  // La progression doit contenir les pastilles, pas leur représentation.
+  const prog = $$('#compBody tr td:nth-child(3)')[0];
+  assert.ok(prog.querySelector('.qdot'), 'les pastilles de progression doivent être présentes');
+});
+
+test('le portail affiche l\'heure dans le fuseau du poste', async () => {
+  stubFetch();
+  const { renderPortal } = await loadClient();
+  const data = overviewPayload();
+  // Un horaire UTC bien connu : 14:10:00Z.
+  data.competitive[0].last_submit = '14:10:00';
+  data.competitive[0].last_submit_iso = '2026-01-01T14:10:00.000Z';
+  renderPortal(data);
+
+  const attendu = new Date('2026-01-01T14:10:00.000Z')
+    .toLocaleTimeString('fr-FR', { hour12: false });
+  const cellule = $$('#compBody tr')[0].querySelectorAll('td')[4];
+  assert.equal(cellule.textContent, attendu,
+    'l\'heure doit être rendue dans le fuseau du navigateur, pas celui du serveur');
+});
+
+test('le podium affiche aussi la colonne IP', async () => {
+  stubFetch();
+  const { renderPortal } = await loadClient();
+  const data = overviewPayload();
+  data.competitive[0].last_ip = '::ffff:192.168.38.42';
+  data.normal[0].last_ip = '192.168.38.17';
+  renderPortal(data);
+
+  const comp = $$('#compBody tr')[0].querySelectorAll('td');
+  assert.equal(comp.length, 6, 'six colonnes au podium');
+  assert.match(comp[5].textContent, /192\.168\.38\.42/,
+    'la forme ::ffff: doit être nettoyée');
+  assert.match($$('#normBody tr')[0].querySelectorAll('td')[4].textContent, /192\.168\.38\.17/);
+});
 
 test('le portail affiche le podium et le tableau de suivi', async () => {
   stubFetch();

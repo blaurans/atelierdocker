@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS players (
   last_seen     TEXT    NOT NULL,
   last_ip       TEXT    NOT NULL DEFAULT '',   -- poste du dernier appel
   last_submit   TEXT    NOT NULL DEFAULT '-',
+  last_submit_at TEXT,                       -- même chose en ISO complet (UTC)
   finished_at   TEXT,
   attested      TEXT    NOT NULL DEFAULT ''  -- JSON: { questId: true }
 );

@@ -27,10 +27,24 @@ const state = {
 /* ══════════════════════════════════════════════════════════════ utilitaires */
 
 const $ = (sel) => document.querySelector(sel);
-const el = (tag, cls, text) => {
+
+/**
+ * Crée un élément.
+ *
+ * `texte` n'accepte qu'une chaîne ou un nombre. On refuse explicitement les
+ * nœuds DOM : `textContent = <span>` affiche littéralement
+ * « [object HTMLSpanElement] », ce qui est exactement le bug que cela évite.
+ * Pour insérer un élément, on construit le nœud et on fait `appendChild`.
+ */
+const el = (tag, cls, texte) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
-  if (text !== undefined) n.textContent = text;
+  if (texte !== undefined && texte !== null) {
+    if (typeof texte === 'object') {
+      throw new TypeError(`el('${tag}') attend une chaîne, reçu un ${texte.constructor?.name ?? 'objet'}`);
+    }
+    n.textContent = String(texte);
+  }
   return n;
 };
 
@@ -233,7 +247,7 @@ function renderCompetitive(rows, meta) {
   const body = $('#compBody');
   body.textContent = '';
   if (!rows.length) {
-    body.appendChild(emptyRow(5, 'Aucun compétitif inscrit.'));
+    body.appendChild(emptyRow(6, 'Aucun compétitif inscrit.'));
     return;
   }
   for (const row of rows) {
@@ -245,9 +259,14 @@ function renderCompetitive(rows, meta) {
     if (row.finished) team.appendChild(el('span', 'badge badge-done', 'TERMINÉ'));
     tr.appendChild(team);
 
-    tr.appendChild(el('td', 'c-mid', questBadges(row.completed, meta.total_quests)));
+    const prog = el('td', 'c-mid');
+    prog.appendChild(questBadges(row.completed, meta.total_quests));
+    tr.appendChild(prog);
     tr.appendChild(el('td', 'c-mid score-cell', String(row.score)));
-    tr.appendChild(el('td', 'c-right dim', row.last_submission));
+    tr.appendChild(el('td', 'c-right dim', heure(row.last_submit_iso, row.last_submission)));
+    const ip = el('td', 'c-right');
+    ip.appendChild(cellIp(row.last_ip));
+    tr.appendChild(ip);
     body.appendChild(tr);
   }
 }
@@ -276,10 +295,34 @@ function renderNormal(rows) {
       : el('span', 'badge badge-run', 'EN COURS'));
     tr.appendChild(status);
 
-    tr.appendChild(el('td', 'c-right dim', row.last_submission));
-    tr.appendChild(el('td', 'c-right', cellIp(row.last_ip)));
+    tr.appendChild(el('td', 'c-right dim', heure(row.last_submit_iso, row.last_submission)));
+    const ip = el('td', 'c-right');
+    ip.appendChild(cellIp(row.last_ip));
+    tr.appendChild(ip);
     body.appendChild(tr);
   }
+}
+
+/**
+ * Heure d'une action, affichée dans le fuseau du navigateur.
+ *
+ * Le serveur enregistre en UTC — c'est le bon choix pour la durée des
+ * missions, qui se calcule en millisecondes. Mais afficher « 16:47 » sur une
+ * horloge à 18:47 est déroutant pour l'enseignant : la salle ne parle pas UTC.
+ *
+ * `iso` est l'horodatage complet en UTC envoyé par le serveur. Sans lui, on
+ * retombe sur la chaîne `last_submission` du cahier des charges, qui est
+ * tronquée et donc déjà dans le mauvais fuseau — mieux vaut l'afficher que
+ * de la masquer.
+ */
+function heure(iso, repli = '-') {
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleTimeString('fr-FR', { hour12: false });
+    }
+  }
+  return repli && repli !== '-' ? repli : '—';
 }
 
 /**

@@ -149,8 +149,9 @@ export const persistBreakdown = (completionId, result) =>
     .run(result.speed_bonus, result.pace_bonus, result.penalty, completionId);
 
 export const markSubmitTime = (playerId, hh) =>
-  db.prepare('UPDATE players SET last_submit = ?, last_seen = ? WHERE id = ?')
-    .run(hh, now(), playerId);
+  db.prepare(
+    'UPDATE players SET last_submit = ?, last_submit_at = ?, last_seen = ? WHERE id = ?',
+  ).run(hh, now(), now(), playerId);
 
 export const globalRankFor = (questNumber, at, excludePlayerId) =>
   rankForQuest.get({ number: questNumber, at, pid: excludePlayerId }).n + 1;
@@ -174,7 +175,8 @@ export function resetPlayer(id) {
   const p = db.transaction(() => {
     db.prepare('DELETE FROM completions WHERE player_id = ?').run(id);
     db.prepare('DELETE FROM events WHERE player_id = ?').run(id);
-    db.prepare(`UPDATE players SET score = 0, finished_at = NULL, last_submit = '-', attested = '' WHERE id = ?`).run(id);
+    db.prepare(`UPDATE players SET score = 0, finished_at = NULL, last_submit = '-',
+                last_submit_at = NULL, attested = '' WHERE id = ?`).run(id);
   });
   p();
 }
