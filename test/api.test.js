@@ -134,6 +134,44 @@ test('soumission normale : mêmes quêtes, mêmes chiffres qu’en Challenge', a
   assert.equal(me.json.progress, `1/${pack.totalQuests}`);
 });
 
+test('un indice est facturé une fois, et seulement une fois', async () => {
+  wipe();
+  const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Facture', mode: 'competitive' } });
+  const q = pack.quests[0];
+  const total = q.hint_count;
+
+  // Deux requêtes successives servent deux indices *différents* : l'endpoint
+  // sert « le suivant », il n'y a pas d'index demandé. C'est le comportement
+  // voulu — un double-clic fait bien perdre deux indices, et c'est pourquoi le
+  // bouton est désactivé pendant l'appel.
+  const r1 = await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  const r2 = await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  assert.equal(r1.json.index, 0);
+  assert.equal(r2.json.index, 1);
+  assert.notEqual(r1.json.hint, r2.json.hint, 'chaque appel doit servir un indice différent');
+
+  // Une fois épuisé, plus rien — et ce n'est pas une erreur.
+  for (let i = 2; i < total; i++) {
+    await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  }
+  const epuise = await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  assert.equal(epuise.status, 200, 'épuisé n\'est pas une erreur HTTP');
+  assert.equal(epuise.json.status, 'exhausted');
+  assert.equal(epuise.json.hint, null);
+
+  // La ligne en base ne dépasse jamais le nombre d'indices du contenu, quel que
+  // soit le nombre d'appels : c'est le serveur qui borne, pas le client.
+  const n = db.prepare('SELECT COUNT(*) AS n FROM hint_uses h JOIN players p ON p.id = h.player_id WHERE p.token = ?')
+    .get(reg.token).n;
+  assert.equal(n, total, `exactement ${total} indices consommés, pas plus`);
+
+  // La quête validée après ces indices n'est pas autonome.
+  const flag = secretFor({ token: reg.token }, q);
+  const sub = await api('/api/submit', { method: 'POST', body: { flag }, token: reg.token });
+  assert.equal(sub.json.quest_result.autonomous, false);
+  assert.equal(sub.json.mastery.autonomous, 0);
+});
+
 test('le portail ne classe plus les élèves', async () => {
   wipe();
   await api('/api/register', { method: 'POST', body: { team: 'Zen', mode: 'normal' } });

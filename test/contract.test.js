@@ -241,6 +241,6 @@ test('le contrat et le README annoncent les mêmes chiffres', () => {
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);
   assert.ok(annonce, 'le README doit indiquer le nombre de tests');
   const fichiers = fs.readdirSync(path.resolve('test')).filter((f) => f.endsWith('.test.js'));
-  assert.ok(fichiers.length >= 7, `la suite doit être répartie sur au moins 7 fichiers, ${fichiers.length}`);
+  assert.ok(fichiers.length >= 8, `la suite doit être répartie sur au moins 7 fichiers, ${fichiers.length}`);
   assert.ok(Number(annonce[1]) >= fichiers.length, 'le nombre annoncé doit être plausible');
 });
