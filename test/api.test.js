@@ -8,6 +8,10 @@ process.env.QUIET = '1';
 // débit, qui existent pour la vraie salle, les bloqueraient. Ils sont testés
 // séparément dans test/ratelimit.test.js.
 process.env.RATE_LIMIT = 'off';
+// Mot de passe d'administration. Il y en a un : avant, une clé vide signifiait
+// « lab ouvert » et les tests passaient sans jamais s'authentifier — ce qui
+// voulait dire qu'aucun ne vérifiait que l'administration était bien fermée.
+process.env.ADMIN_KEY = 'mdp-de-test';
 
 const { createApp } = await import('../src/server.js');
 const { db } = await import('../src/db.js');
@@ -28,12 +32,19 @@ test.after(() => {
   db.close();
 });
 
-const api = async (path, { method = 'GET', body, token, headers = {} } = {}) => {
+/**
+ * Un appel à l'API de test.
+ *
+ * `admin: true` envoie le mot de passe par l'en-tête — le canal qu'utilise
+ * `curl`, et le seul que le harnais puisse gérer sans suivre les cookies.
+ */
+const api = async (path, { method = 'GET', body, token, admin = false, headers = {} } = {}) => {
   const res = await fetch(base + path, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { 'X-Arena-Token': token } : {}),
+      ...(admin ? { 'X-Arena-Admin': process.env.ADMIN_KEY } : {}),
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -270,7 +281,7 @@ test('le portail ne classe plus les élèves', async () => {
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: alpha.token }, pack.quests[0]), token: alpha.token } });
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: bravo.token }, pack.quests[0]), token: bravo.token } });
 
-  const ov = await api('/api/overview');
+  const ov = await api('/api/overview', { admin: true });
   // Une seule liste, tous modes confondus : le portail ne trie plus par score.
   assert.equal(Array.isArray(ov.json.players), true);
   assert.equal(ov.json.competitive, undefined, 'plus de classement compétitif');
@@ -308,7 +319,7 @@ test('le portail dit où l\'élève en est, pas qui gagne', async () => {
   }
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: bloquant.token }, q0), token: bloquant.token } });
 
-  const ov = (await api('/api/overview')).json;
+  const ov = (await api('/api/overview', { admin: true })).json;
   const a = ov.players.find((p) => p.team === 'Ahead');
   const b = ov.players.find((p) => p.team === 'Bloque');
 
@@ -394,12 +405,12 @@ test('le portail suit la dernière soumission', async () => {
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Horodatage', mode: 'competitive' } });
   assert.equal(reg.last_submission, undefined);
 
-  let ov = (await api('/api/overview')).json;
+  let ov = (await api('/api/overview', { admin: true })).json;
   assert.equal(ov.players[0].last_submission, '-', 'rien de soumis au départ');
 
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
 
-  ov = (await api('/api/overview')).json;
+  ov = (await api('/api/overview', { admin: true })).json;
   const heure = ov.players[0].last_submission;
   assert.match(heure, /^\d{2}:\d{2}:\d{2}$/, `horodatage inattendu : « ${heure} »`);
 });
@@ -430,7 +441,7 @@ test('le tableau de suivi indique le poste de chaque joueur', async () => {
   wipe();
   await api('/api/register', { method: 'POST', body: { team: 'DepuisPoste', mode: 'normal' } });
 
-  const ov = (await api('/api/overview')).json;
+  const ov = (await api('/api/overview', { admin: true })).json;
   const row = ov.players.find((p) => p.team === 'DepuisPoste');
   assert.ok(row, 'le joueur doit apparaître au suivi');
   assert.ok('last_ip' in row, 'le suivi doit exposer le poste');
@@ -444,13 +455,13 @@ test('un X-Forwarded-For forgé ne maquille pas le poste', async () => {
   wipe();
   await api('/api/register', { method: 'POST', body: { team: 'Forge', mode: 'normal' } });
 
-  const avant = (await api('/api/overview')).json.players
+  const avant = (await api('/api/overview', { admin: true })).json.players
     .find((p) => p.team === 'Forge').last_ip;
 
   // TRUST_PROXY vaut off dans les tests : l'en-tête ne doit avoir aucun effet.
-  await api('/api/overview', { headers: { 'X-Forwarded-For': '8.8.8.8' } });
+  await api('/api/overview', { admin: true, headers: { 'X-Forwarded-For': '8.8.8.8' } });
 
-  const apres = (await api('/api/overview')).json.players
+  const apres = (await api('/api/overview', { admin: true })).json.players
     .find((p) => p.team === 'Forge').last_ip;
   assert.notEqual(apres, '8.8.8.8', 'une IP forgée ne doit jamais être retenue');
   assert.equal(apres, avant);
@@ -468,7 +479,7 @@ test('l\'administration permet de remettre un joueur à zéro', async () => {
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
   assert.equal((await api('/api/me', { token: reg.token })).json.mastery.done, 1);
 
-  const reset = await api('/api/admin/reset/AReprendre', { method: 'POST' });
+  const reset = await api('/api/admin/reset/AReprendre', { method: 'POST', admin: true, body: { confirm: 'oui' } });
   assert.equal(reset.status, 200);
 
   const me = (await api('/api/me', { token: reg.token })).json;
@@ -479,7 +490,7 @@ test('l\'administration permet de remettre un joueur à zéro', async () => {
   assert.equal(me.team, 'AReprendre');
   assert.equal(me.rank, undefined);
 
-  assert.equal((await api('/api/admin/reset/Inexistant', { method: 'POST' })).status, 404);
+  assert.equal((await api('/api/admin/reset/Inexistant', { method: 'POST', admin: true, body: { confirm: 'oui' } })).status, 404);
 });
 
 test('changer de mode efface le parcours', async () => {
@@ -487,7 +498,7 @@ test('changer de mode efface le parcours', async () => {
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Converti', mode: 'competitive' } });
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
 
-  const r = await api('/api/admin/mode/Converti', { method: 'POST', body: { mode: 'normal' } });
+  const r = await api('/api/admin/mode/Converti', { method: 'POST', admin: true, body: { mode: 'normal' } });
   assert.equal(r.json.mode, 'normal');
 
   const me = (await api('/api/me', { token: reg.token })).json;
@@ -502,7 +513,10 @@ test('changer de mode efface le parcours', async () => {
 test('le flux SSE pousse un état au changement', async () => {
   wipe();
   const ac = new AbortController();
-  const res = await fetch(`${base}/api/live`, { signal: ac.signal });
+  // Le flux est derrière le mot de passe comme le reste de l'administration.
+  const res = await fetch(`${base}/api/live`, {
+    signal: ac.signal, headers: { 'X-Arena-Admin': process.env.ADMIN_KEY },
+  });
   assert.equal(res.headers.get('content-type'), 'text/event-stream; charset=utf-8');
 
   const reader = res.body.getReader();

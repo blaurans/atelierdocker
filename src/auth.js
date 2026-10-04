@@ -1,4 +1,3 @@
-import { config } from './config.js';
 import { clientIp } from './ratelimit.js';
 import { findByToken, findByTeam, touch } from './repo/arena.js';
 
@@ -67,10 +66,10 @@ export function requirePlayer(req, _res, next) {
   next();
 }
 
-/** Middleware : accès enseignant. `ADMIN_KEY` vide = lab ouvert (défaut). */
-export function requireAdmin(req, _res, next) {
-  if (!config.adminKey) return next(); // lab ouvert
-  const key = req.get('x-arena-admin') || bearer(req);
-  if (key === config.adminKey) return next();
-  next(new HttpError(403, "Clé d'administration invalide."));
-}
+/*
+ * L'administration a été déplacée dans `src/routes/admin.js`, avec son jeton de
+ * session. Ce ré-export existe pour que les imports existants continuent de
+ * fonctionner — mais `requireAdmin` n'est plus défini ici : il faut l'importer
+ * de `./routes/admin.js`, sinon on aurait deux règles d'accès.
+ */
+export { requireAdmin } from './routes/admin.js';

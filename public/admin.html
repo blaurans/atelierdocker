@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Administration — Atelier Docker</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🐳</text></svg>">
+</head>
+<body class="admin-body">
+
+<!-- ══════════════════════════════════════════ mot de passe -->
+<div id="gate" class="admin-gate">
+  <form class="admin-card" id="gateForm" autocomplete="on">
+    <div class="admin-gate-brand"><span>🐳</span> Atelier Docker</div>
+    <h1>Administration</h1>
+    <p class="admin-gate-sub">
+      Cette page montre toute la classe — pseudos, progression, adresses IP —
+      et permet de remettre un joueur à zéro. Le mot de passe est celui du
+      fichier <code>.env</code> du serveur (<code>ATELIER_ADMIN_KEY</code>).
+    </p>
+
+    <label for="mdp">Mot de passe</label>
+    <input id="mdp" name="password" type="password" autocomplete="current-password"
+           required autofocus spellcheck="false" autocapitalize="off">
+
+    <button class="btn btn-primary btn-lg" type="submit">Ouvrir la session</button>
+    <p class="admin-msg" id="gateMsg" role="alert"></p>
+
+    <p class="admin-gate-note">
+      La session dure une journée de cours, puis le mot de passe est demandé
+      à nouveau. Le mot de passe n'est jamais stocké dans le navigateur : il
+      sert à obtenir un jeton, et c'est le jeton qui voyage.
+    </p>
+    <a class="admin-gate-back" href="/">← Retour au jeu</a>
+  </form>
+</div>
+
+<!-- ══════════════════════════════════════════ l'écran -->
+<div id="admin" class="admin-screen" hidden>
+  <header class="admin-head">
+    <div class="wrap head-row">
+      <div>
+        <h1 class="admin-brand"><span class="bolt">🐳</span> ATELIER DOCKER <span class="sep">//</span> <span class="thin">ADMINISTRATION</span></h1>
+        <p class="admin-sub" id="sessionInfo">—</p>
+      </div>
+      <div class="head-actions">
+        <span class="live-dot" id="liveDot"><i></i><span id="liveLabel">connexion…</span></span>
+        <button class="btn btn-ghost" id="btnRafraichir" type="button">↻ Rafraîchir</button>
+        <button class="btn btn-ghost" id="btnQuitter" type="button">Fermer la session</button>
+        <a class="btn btn-ghost" href="/">← Jeu</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap admin-body-main">
+
+    <!-- La classe en un coup d'œil -->
+    <section class="admin-stats" id="stats"></section>
+
+    <!-- Les élèves -->
+    <section class="admin-panel">
+      <div class="admin-panel-head">
+        <h2><span class="ico">👥</span> La classe</h2>
+        <span class="admin-panel-sub" id="playersCount">—</span>
+      </div>
+      <div class="admin-search">
+        <input id="search" type="search" placeholder="Filtrer par pseudo…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="table-scroll">
+        <table class="board">
+          <thead><tr>
+            <th>Joueur</th>
+            <th class="c-mid">Mode</th>
+            <th class="c-mid">Progression</th>
+            <th class="c-mid">Autonomie</th>
+            <th class="c-mid">Compréhension</th>
+            <th class="c-mid">Niveau</th>
+            <th class="c-mid">Indices</th>
+            <th class="c-right">Poste (IP)</th>
+            <th class="c-right">Actions</th>
+          </tr></thead>
+          <tbody id="playersBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Validations en attente, quand REQUIRE_ATTESTATION est actif -->
+    <section class="admin-panel" id="pendingPanel" hidden>
+      <div class="admin-panel-head">
+        <h2><span class="ico">⏳</span> Validations en attente</h2>
+        <span class="admin-panel-sub">Le flag est correct, la quête n'est pas acquise tant que tu ne l'as pas validée</span>
+      </div>
+      <div class="table-scroll">
+        <table class="board">
+          <thead><tr>
+            <th>Joueur</th><th class="c-mid">Quête</th><th class="c-right">Soumis à</th><th class="c-right">Action</th>
+          </tr></thead>
+          <tbody id="pendingBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Où ça coince -->
+    <div class="admin-cols">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2><span class="ico">🔍</span> Où ça coince</h2>
+          <span class="admin-panel-sub">Les quêtes sur lesquelles des élèves sont restés bloqués juste avant</span>
+        </div>
+        <ol class="admin-stuck" id="stuckList"></ol>
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2><span class="ico">📜</span> Journal</h2>
+          <span class="admin-panel-sub">Les trente derniers événements, y compris les refus</span>
+        </div>
+        <ul class="admin-log" id="eventLog"></ul>
+      </section>
+    </div>
+
+    <!-- Les commandes, pour le cas où l'écran ne suffit pas -->
+    <section class="admin-panel">
+      <details>
+        <summary>Commandes <code>curl</code> — pour un script, ou si l'écran ne répond pas</summary>
+        <pre><code id="curlBox"></code></pre>
+        <p class="admin-note">
+          Elles utilisent l'en-tête <code>X-Arena-Admin</code>, pas le cookie :
+          <code>curl</code> ne gère pas les cookies. <b>Le mot de passe apparaît
+          dans l'historique du terminal</b> — c'est le prix de l'en-tête, et la
+          raison pour laquelle l'écran existe.
+        </p>
+      </details>
+    </section>
+
+    <footer class="admin-foot">
+      <span>Session valable une journée de cours.</span>
+      <span>·</span>
+      <span>Aucune donnée n'est supprimée sans confirmation.</span>
+    </footer>
+  </main>
+</div>
+
+<script type="module" src="/admin.js"></script>
+</body>
+</html>

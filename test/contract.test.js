@@ -18,6 +18,7 @@ const read = (f) => fs.readFileSync(path.resolve(f), 'utf8');
 const doc = read('docs/CONTRACTS.md');
 const api = read('src/routes/api.js');
 const atelier = read('src/routes/atelier.js');
+const admin = read('src/routes/admin.js');
 const questpack = read('src/questpack.js');
 const progress = read('src/progress.js');
 const portal = read('src/portal.js');
@@ -44,11 +45,15 @@ test('le contrat décrit des routes', () => {
 test('toutes les routes annoncées existent dans le code', () => {
   // Les routes sont montées sur des routers Express : le code écrit '/quests'
   // là où la documentation écrit '/api/quests'. On normalise les deux côtés.
-  const sources = { [api]: 'api', [atelier]: 'atelier' };
+  // Le routeur d'administration est le troisième : ses routes sont documentées
+  // dans le contrat comme celles du jeu, et elles vivent dans leur propre
+  // fichier. Les oublier ici laisserait le contrat décrire des routes que
+  // personne ne vérifie.
+  const sources = { [api]: 'api', [atelier]: 'atelier', [admin]: 'admin' };
   const declarees = [];
   for (const [src, router] of Object.entries(sources)) {
-    for (const m of src.matchAll(/\b(api|atelier)\.(get|post)\(\s*'([^']*)'/g)) {
-      declarees.push(`${m[2].toUpperCase()} /api${m[3]}`);
+    for (const m of src.matchAll(new RegExp(`\\b${router}\\.(get|post|delete)\\(\\s*'([^']*)'`, 'g'))) {
+      declarees.push(`${m[1].toUpperCase()} /api${m[2]}`);
     }
   }
 
@@ -394,6 +399,31 @@ test('les libellés de mode sont les mêmes partout', async () => {
   assert.doesNotMatch(html, /COMPÉTITIF|NORMAL(?! )/, 'les badges de la V1 sont restés');
   assert.doesNotMatch(html, /Score</, 'la carte de mode promet encore un score');
   assert.doesNotMatch(html, /Podium en direct/, 'et un podium : il n\'y en a plus');
+});
+
+test('le contrat décrit la fermeture de l\'administration', () => {
+  // Une règle de sécurité qui vit dans le code mais pas dans le contrat est une
+  // règle qu'on ne relit pas au moment d'en avoir besoin.
+  const bloc = section('### 2.7');
+  assert.match(bloc, /HttpOnly/, 'le cookie doit être documenté et pourquoi');
+  assert.match(bloc, /SameSite=Strict/);
+  assert.match(bloc, /refuse de démarrer/, 'et le refus de démarrer sans mot de passe');
+
+  // Le README doit dire la même chose.
+  assert.match(read('README.md'), /ATELIER_ADMIN_KEY.*mot de passe/s,
+    'le README doit présenter la variable comme un mot de passe');
+  assert.match(read('README.md'), /\/admin/,
+    'et dire où se trouve l\'écran');
+
+  // Le compose doit refuser une valeur vide.
+  assert.match(read('docker-compose.yml'), /ATELIER_ADMIN_KEY:\?/,
+    'le compose doit interpolationner la variable sans valeur par défaut');
+
+  // Et le code ne doit contenir aucun vestige du « lab ouvert ».
+  for (const f of ['src/auth.js', 'src/routes/api.js']) {
+    assert.doesNotMatch(read(f), /lab ouvert/i,
+      `${f} : l\'ancien « lab ouvert » est une règle d'accès à ne plus avoir`);
+  }
 });
 
 test('le contrat et le README annoncent les mêmes chiffres', () => {

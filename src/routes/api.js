@@ -1,11 +1,11 @@
 import express from 'express';
 import { db } from '../db.js';
 import { config, isMode, MODE_LABELS } from '../config.js';
-import { HttpError, requirePlayer, requireAdmin, identify } from '../auth.js';
+import { HttpError, requirePlayer, identify } from '../auth.js';
 import { __plafonds as plafonds, clientIp } from '../ratelimit.js';
 import { quests, reloadQuestpack } from '../questpack.js';
 import { mastery, cohort } from '../mastery.js';
-import { overview, liveHandler, announce } from '../portal.js';
+import { announce } from '../portal.js';
 import { submitQuest, attest, announceAfter } from '../progress.js';
 import { secretFor } from '../secret.js';
 import {
@@ -524,11 +524,16 @@ function buildMessage({ player, quest, outcome, doneIds, pack }) {
 
 /* ---------------------------------------------------------------- overview */
 
-api.get('/overview', (_req, res, next) => {
-  try { res.json(overview()); } catch (e) { next(e); }
-});
-
-api.get('/live', plafonds.live, liveHandler);
+/*
+ * `GET /api/overview` et `GET /api/live` ne sont **plus** ici : ils sont montés
+ * dans `src/routes/admin.js`, derrière le mot de passe.
+ *
+ * Ils listent tous les élèves, leur progression et leur adresse IP. C'est la
+ * vue de l'enseignant. La laisser ouverte sur une URL publique revenait à
+ * publier la liste de la classe et les IP des postes — à quiconque Bautait à
+ * l'adresse. Un élève n'a jamais besoin de cette route ; l'administrateur,
+ * oui.
+ */
 
 /**
  * Classement — route retirée en V2.
@@ -541,119 +546,21 @@ api.get('/live', plafonds.live, liveHandler);
 
 /* -------------------------------------------------------------------- stats */
 
-api.get('/stats', requireAdmin, (_req, res, next) => {
-  try {
-    const pack = quests();
-    const ov = overview();
-    const everyone = [...ov.competitive, ...ov.normal];
-
-    res.json({
-      ...counts(),
-      by_mode: {
-        competitive: ov.competitive.length,
-        normal: ov.normal.length,
-      },
-      quests: {
-        total: pack.totalQuests,
-        points: pack.totalPoints,
-        hardest: pack.quests
-          .map((q) => ({
-            id: q.id,
-            number: q.number,
-            title: q.title,
-            module: q.module,
-            points: q.points,
-            solved: everyone.filter((p) => p.quests.includes(q.id)).length,
-            stuck: everyone.filter((p) => p.completed.length === q.number - 1).length,
-          }))
-          .sort((a, b) => b.stuck - a.stuck || a.solved - b.solved)
-          .slice(0, 5),
-      },
-      recent_events: allEvents(30).map((e) => ({
-        at: e.created_at,
-        kind: e.kind,
-        detail: e.detail,
-      })),
-    });
-  } catch (e) { next(e); }
-});
+/*
+ * `GET /api/stats` n'est plus ici : elle est dans `src/routes/admin.js`, derrière
+ * le mot de passe, et reconstruite sur `ov.players` — elle lisait
+ * `ov.competitive` / `ov.normal`, champs supprimés avec le classement, et
+ * levait une exception à chaque appel. Elle n'a jamais fonctionné.
+ */
 
 /* -------------------------------------------------------------------- admin */
 
-const teamOr404 = (name) => {
-  const p = findByTeam(name);
-  if (!p) throw new HttpError(404, 'Pseudo inconnu.');
-  return p;
-};
-
-/** Joueurs en attente d'attestation (uniquement si REQUIRE_ATTESTATION=1). */
-api.get('/admin/pending', requireAdmin, (_req, res, next) => {
-  try {
-    const rows = db.prepare(`
-      SELECT p.team, p.mode, c.quest_id, c.quest_number, c.completed_at, c.time_ms, c.wrong_flags
-        FROM completions c JOIN players p ON p.id = c.player_id
-       WHERE c.status = 'pending'
-       ORDER BY c.completed_at
-    `).all();
-    res.json({ pending: rows });
-  } catch (e) { next(e); }
-});
-
-api.post('/admin/reset/:team', requireAdmin, (req, res, next) => {
-  try {
-    const p = teamOr404(req.params.team);
-    resetPlayer(p.id);
-    announce(`reset:${p.team}`);
-    res.json({ status: 'reset', team: p.team, mode: p.mode });
-  } catch (e) { next(e); }
-});
-
-api.post('/admin/delete/:team', requireAdmin, (req, res, next) => {
-  try {
-    const p = teamOr404(req.params.team);
-    deletePlayer(p.id);
-    announce(`delete:${p.team}`);
-    res.json({ status: 'deleted', team: p.team });
-  } catch (e) { next(e); }
-});
-
-api.post('/admin/mode/:team', requireAdmin, (req, res, next) => {
-  try {
-    const mode = String(req.body?.mode ?? '').toLowerCase();
-    if (!isMode(mode)) throw new HttpError(400, 'Mode invalide.');
-    const p = teamOr404(req.params.team);
-    setMode(p.id, mode);
-    // Changer de mode en cours d'année ne doit pas garder les validations
-    // de l'autre mode : elles ont été obtenues sous des règles de notation
-    // différentes. `resetPlayer` efface le parcours, l'élève recommence —
-    // c'est ce que l'enseignant veut en changeant un élève de mode en plein
-    // atelier.
-    resetPlayer(p.id);
-    announce(`mode:${p.team}`);
-    res.json({ status: 'ok', team: p.team, mode });
-  } catch (e) { next(e); }
-});
-
-api.post('/admin/attest/:team/:questId', requireAdmin, (req, res, next) => {
-  try {
-    if (!config.requireAttestation) {
-      throw new HttpError(400, "L'attestation est désactivée (REQUIRE_ATTESTATION=0).");
-    }
-    const p = teamOr404(req.params.team);
-    const result = attest({ player: p, questId: req.params.questId });
-    if (!result) throw new HttpError(404, 'Aucune soumission en attente pour cette quête.');
-    announceAfter(p.id);
-    res.json({ status: 'attested', team: p.team, quest_id: req.params.questId, ...result });
-  } catch (e) { next(e); }
-});
-
-api.post('/admin/seed', requireAdmin, (_req, res, next) => {
-  try {
-    const pack = reloadQuestpack();
-    announce('seed');
-    res.json({ status: 'ok', quests: pack.totalQuests, points: pack.totalPoints });
-  } catch (e) { next(e); }
-});
+/*
+ * Tout ce qui suit est parti dans `src/routes/admin.js`, avec le reste de
+ * l'administration. Ces routes partagent un mot de passe et un jeton de
+ * session ; les laisser ici aurait signifié deux implémentations de la même
+ * règle, donc deux endroits où l'oublier.
+ */
 
 /* ------------------------------------------------------------------ rappels */
 

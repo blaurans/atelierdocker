@@ -375,27 +375,48 @@ curl -X POST https://atelierdocker.laurans.org/api/submit \
 
 ### Après le TP
 
+Tout se fait depuis **https://atelierdocker.laurans.org/admin** : la classe
+complète avec les adresses IP, la remise à zéro, le changement de mode, les
+validations en attente, et le journal. Le mot de passe est celui du `.env`.
+
+En ligne de commande, pour un script :
+
 ```bash
-# Remettre un joueur à zéro (oubli de token, réinscription)
-curl -X POST https://atelierdocker.laurans.org/api/admin/reset/CyberPhoenix
+# Le mot de passe, une fois
+export ATELIER_ADMIN_KEY=$(grep ATELIER_ADMIN_KEY /app/atelierdocker/.env | cut -d= -f2-)
+AUTH=(-H "X-Arena-Admin: $ATELIER_ADMIN_KEY")
+
+# Remettre un joueur à zéro (oubli de token, réinscription).
+# La confirmation est obligatoire : sans elle le serveur refuse.
+curl -X POST "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d '{"confirm":"oui"}' \
+  https://atelierdocker.laurans.org/api/admin/reset/MonPseudo
 
 # Basculer un joueur de mode — ATTENTION : efface son parcours
-curl -X POST https://atelierdocker.laurans.org/api/admin/mode/Alice_Bob \
-  -H "Content-Type: application/json" -d '{"mode":"competitive"}'
+curl -X POST "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d '{"mode":"competitive"}' \
+  https://atelierdocker.laurans.org/api/admin/mode/MonPseudo
 
 # Statistiques : où la classe bloque
-curl https://atelierdocker.laurans.org/api/stats
+curl "${AUTH[@]}" https://atelierdocker.laurans.org/api/stats
 ```
 
-Ces appels exigent tous l'en-tête `-H "X-Arena-Admin: $ATELIER_ADMIN_KEY"`.
-Sans clé, l'administration est ouverte à quiconque trouve l'URL :
-`/api/admin/delete/:team` supprime une inscription, `/api/admin/reset/:team`
-efface la progression. C'est pourquoi `ATELIER_ADMIN_KEY` est obligatoire dans
-le `.env`, et pourquoi le `compose.yaml` refuse de démarrer sans elle.
+**`ATELIER_ADMIN_KEY` est un mot de passe, pas une clé d'API.** Il ouvre la page
+`/admin`, la vue de classe (`/api/overview`, `/api/live`) et toutes les actions.
+Sans lui, l'administration **existe** mais ne répond pas : 401 partout. Et s'il
+est vide dans le `.env`, le serveur **refuse de démarrer** — il n'y a plus de
+mode « lab ouvert », parce qu'une clé vide sur une URL publique donnait à
+quiconque trouve l'adresse la liste de la classe et un bouton pour supprimer
+des inscriptions.
 
-`/api/stats` renvoie les **cinq missions les plus redoutées** (celles où le
-plus d'étudiants sont bloqués à l'étape précédente). C'est le point à
-reprendre au tableau au TP suivant.
+Le mot de passe n'est jamais stocké dans le navigateur : il sert à obtenir un
+jeton signé, transporté par un cookie `HttpOnly; SameSite=Strict`. Une page du
+jeu ne peut pas le lire, et un lien glissé dans une discussion ne peut pas
+s'en servir pour supprimer une inscription.
+
+`/api/stats` renvoie les **cinq quêtes sur lesquelles des élèves sont restés
+bloqués juste avant** — pas celles qui rapportent le plus de points. C'est le
+point à reprendre au tableau au TP suivant.
 
 ---
 
@@ -413,9 +434,14 @@ n'est pas acquise, le joueur n'avance pas, et le message le lui dit
 explicitement. Vous apposez votre validation depuis :
 
 ```bash
-curl https://atelierdocker.laurans.org/api/admin/pending
-curl -X POST https://atelierdocker.laurans.org/api/admin/attest/CyberPhoenix/m4-04-port-master
+AUTH=(-H "X-Arena-Admin: $ATELIER_ADMIN_KEY")
+curl "${AUTH[@]}" https://atelierdocker.laurans.org/api/admin/pending
+curl -X POST "${AUTH[@]}" \
+  https://atelierdocker.laurans.org/api/admin/attest/MonPseudo/m5-04-port-master
 ```
+
+Sur l'écran `/admin`, ces deux appels sont un bouton : la section « Validations
+en attente » n'apparaît que s'il y en a.
 
 C'est la seule façon, sans agent sur le poste, de rendre la soumission de flag
 non autodéclarative. Le mode par défaut reste désactivé pour rester
@@ -428,14 +454,29 @@ autonome, comme dans le cahier des charges.
 Le portail est conçu pour **une salle de TP**. Il est aujourd'hui accessible
 sur Internet, ce qui change trois choses par rapport à un portail de classe.
 
-- **Pas de mot de passe.** L'inscription renvoie un `token` stocké dans
-  `localStorage`. Si un secret est fourni, le pseudo est protégé ; sinon,
-  quiconque se connecte avec le même pseudo reprend la session. **Positionnez
-  `ATELIER_ADMIN_KEY` et exigez un secret en salle.**
-- **`ATELIER_ADMIN_KEY` est obligatoire.** Le `compose.yaml` refuse de démarrer
-  sans elle, et `/api/admin/delete/:team` supprime une inscription. Sans clé,
-  cette route est une suppression de données accessible à quiconque trouve
-  l'URL.
+- **Pas de mot de passe pour les élèves.** L'inscription renvoie un `token`
+  stocké dans `localStorage`. Si un secret est fourni, le pseudo est protégé ;
+  sinon, quiconque se connecte avec le même pseudo reprend la session.
+  **Exigez un secret en salle.**
+- **L'administration est fermée, vraiment.** `ATELIER_ADMIN_KEY` — le mot de
+  passe du `.env` — ouvre `/admin`, la vue de classe et toutes les actions.
+  Trois garanties, dans l'ordre d'importance :
+
+  | ce qui est garanti | comment |
+  |---|---|
+  | on ne démarre pas sans mot de passe | `start()` quitte avec le code 1, le compose et le healthcheck échouent |
+  | rien n'est servi sans jeton valide | `requireAdmin` : cookie signé, ou en-tête pour `curl` |
+  | le mot de passe ne reste pas dans le navigateur | cookie `HttpOnly; SameSite=Strict`, jeton valable une journée |
+
+  Le `SameSite=Strict` ferme la porte au CSV : un lien glissé dans une
+  discussion ne peut pas appeler `/api/admin/delete/:pseudo` avec la session de
+  l'enseignant. Le `HttpOnly` veut dire qu'une faille XSS sur `/` ne donne pas
+  l'administration — une page du jeu ne peut pas lire le cookie.
+
+  Le mot de passe **en clair dans `X-Arena-Admin`** reste accepté, parce que
+  `curl` ne gère pas les cookies. Il voyage alors sur la même connexion TLS que
+  le reste : c'est le prix de l'en-tête, et la raison pour laquelle l'écran
+  existe.
 - **Plafonds de débit en place**, par IP et par route, sur une fenêtre d'une
   minute : 12 inscriptions, 40 soumissions, 120 lectures du programme,
   300 flux live. Un `X-Forwarded-For` forgé n'aide pas : l'en-tête n'est lu que
@@ -485,7 +526,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 174 tests
+npm test             # 206 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -553,15 +594,17 @@ src/
   mastery.js            les trois ratios et les paliers
   progress.js           validation d'une mission, écriture des faits
   portal.js             état du portail + flux SSE
-  routes/api.js         parcours, soumission, administration
+  admin_session.js      mot de passe, jeton signé, cookie de session
+  routes/api.js         parcours et soumission — le jeu, rien d'autre
   routes/atelier.js     indice, compréhension, réflexe
+  routes/admin.js       tout ce qui est fermé, plus la vue de classe
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
-public/                 portail + jeu (vanilla, sans dépendance)
-test/                   174 tests : format du contenu, maîtrise, migration,
+public/                 portail, jeu et /admin (vanilla, sans dépendance)
+test/                   206 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
-                        API, rendu du portail et des QCM, contrat, invariants,
-                        qualité du contenu
+                        API, rendu du portail, des QCM et de /admin,
+                        administration, contrat, invariants, qualité du contenu
 docs/CONTRACTS.md       contrat de données et d'API
 ```
 

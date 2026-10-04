@@ -337,9 +337,9 @@ en-tête permettrait à un élève de maquiller son adresse.
 | `GET /api/me` | la maîtrise du joueur et son historique |
 | `POST /api/register` | inscription, jeton stable |
 | `POST /api/submit` | soumission d'un mot de passe |
-| `GET /api/overview` | l'état du portail enseignant |
-| `GET /api/live` | flux SSE de cet état |
-| `GET /api/stats` | synthèse de la promotion |
+| `GET /api/overview` | l'état du portail enseignant — **fermé, § 2.7** |
+| `GET /api/live` | flux SSE de cet état — **fermé, § 2.7** |
+| `GET /api/stats` | indicateurs de séance — **fermé, § 2.7** |
 | `GET /api/commands` | mémento de commandes Docker |
 | `GET /api/secret/:questId` | le mot de passe, en JSON |
 | `GET /api/secret/:questId/raw` | le mot de passe, en texte brut (pour `wget`) |
@@ -353,6 +353,48 @@ en-tête permettrait à un élève de maquiller son adresse.
 | `POST /api/admin/mode/:team` | bascule un joueur de mode — efface son parcours |
 | `GET /api/admin/pending` | les soumissions en attente d'attestation |
 | `POST /api/admin/attest/:team/:questId` | l'enseignant valide une soumission |
+
+### 2.7 Ce qui est fermé
+
+Toutes les routes listées ci-dessus **ne répondent à personne** sans jeton
+d'administration valide :
+
+| route | ce qu'elle ouvrirait sans jeton |
+|---|---|
+| `GET /api/overview` | tous les élèves, leur progression, leur adresse IP |
+| `GET /api/live` | la même chose, en continu |
+| `GET /api/stats` | les indicateurs de séance |
+| `POST /api/admin/*` | la remise à zéro et la suppression d'inscriptions |
+
+Ce sont des routes d'**enseignant**. Un élève n'en a jamais besoin : son
+parcours passe par `/api/register`, `/api/quests`, `/api/submit` et les trois
+routes de maîtrise.
+
+Le jeton s'obtient par `POST /api/admin/session` avec le mot de passe, et
+revient dans un cookie :
+
+```
+Set-Cookie: dq_admin=<expiration>.<signature>; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800
+```
+
+- **`HttpOnly`** — aucune page ne peut le lire. Une faille XSS sur le portail ne
+  donne pas l'administration.
+- **`SameSite=Strict`** — le cookie n'est pas envoyé sur une requête initiée par
+  un autre site. C'est ce qui empêche qu'un lien glissé dans une discussion
+  supprime une inscription avec la session ouverte.
+- **`Secure`** ajouté dès que la requête arrive en HTTPS.
+
+L'en-tête `X-Arena-Admin` accepte **aussi le mot de passe en clair**, parce que
+`curl` ne gère pas les cookies. Ce canal est réservé aux scripts : une page ne
+peut pas s'en servir.
+
+Et s'il n'y a pas de mot de passe, le serveur **refuse de démarrer**. Il n'y a
+plus de mode « lab ouvert » : sur une URL publique, une clé vide donnait à
+quiconque trouve l'adresse la liste de la classe et un bouton pour supprimer des
+inscriptions.
+
+La page `GET /admin` est servie **sans** jeton : c'est elle qui porte le champ
+du mot de passe. Ce qu'elle affiche ensuite, oui, est fermé.
 
 Les trois routes de maîtrise répondent à la règle commune : **ce qui est montré
 au client a été demandé au serveur.**
