@@ -155,7 +155,7 @@ api.get('/secret/:questId/raw', secretRoute(true));
  *
  * Authentification : en-tête `X-Arena-Token` **ou** paramètre `?t=`. Le
  * second est indispensable — la commande est exécutée dans un conteneur, qui
- * n'a pas d'en-tête à envoyer. Et comme le mot de passe est unique par équipe,
+ * n'a pas d'en-tête à envoyer. Et comme le mot de passe est unique par joueur,
  * il faut pouvoir dire « le mien ».
  */
 function secretRoute(raw) {
@@ -192,9 +192,9 @@ api.post('/register', plafonds.register, (req, res, next) => {
     const mode = String(req.body?.mode ?? '').trim().toLowerCase();
     const secret = String(req.body?.secret ?? '').trim();
 
-    if (!team) throw new HttpError(400, "Le nom d'équipe est obligatoire.");
+    if (!team) throw new HttpError(400, 'Le pseudo est obligatoire.');
     if (!TEAM_RE.test(team)) {
-      throw new HttpError(400, 'Nom invalide : 2 à 32 caractères (lettres, chiffres, espace, point, tiret, tiret bas).');
+      throw new HttpError(400, 'Pseudo invalide : 2 à 32 caractères (lettres, chiffres, espace, point, tiret, tiret bas).');
     }
     if (!isMode(mode)) throw new HttpError(400, 'Mode invalide : « competitive » ou « normal ».');
 
@@ -202,7 +202,7 @@ api.post('/register', plafonds.register, (req, res, next) => {
     if (existing) {
       if (existing.secret && existing.secret !== secret) {
         throw new HttpError(409,
-          `L'équipe « ${team} » est déjà prise en mode ${modeLabel(existing.mode)}. `
+          `Le pseudo « ${team} » est déjà pris en mode ${modeLabel(existing.mode)}. `
           + 'Choisis un autre pseudo, ou ressaisis le secret pour reprendre ton score.');
       }
       if (secret && !existing.secret) setSecret(existing.id, secret);
@@ -212,7 +212,7 @@ api.post('/register', plafonds.register, (req, res, next) => {
         team: existing.team,
         mode: existing.mode,
         token: existing.token,
-        message: `Équipe « ${existing.team} » déjà enregistrée en mode ${modeLabel(existing.mode)}.`,
+        message: `Pseudo « ${existing.team} » déjà enregistré en mode ${modeLabel(existing.mode)}.`,
       });
     }
 
@@ -406,12 +406,12 @@ api.post('/submit', plafonds.submit, (req, res, next) => {
     const flag = normalizeFlag(req.body?.flag);
     const player = identify(req);
     if (!player) {
-      throw new HttpError(404, "Équipe non enregistrée. Inscris-toi d'abord via /api/register.");
+      throw new HttpError(404, 'Pseudo non enregistré. Inscris-toi d\'abord via /api/register.');
     }
 
     // Le mot de passe n'est plus stocké dans le contenu : on le compare au
     // secret que le serveur dérive pour CE joueur et CETTE mission. Impossible
-    // donc de valider en recopiant un flag lu ailleurs, et chaque équipe a le
+    // donc de valider en recopiant un flag lu ailleurs, et chaque joueur a le
     // sien.
     const pack = quests();
     const quest = pack.quests.find((q) => secretFor(player, q) === flag);
@@ -582,7 +582,7 @@ api.get('/stats', requireAdmin, (_req, res, next) => {
 
 const teamOr404 = (name) => {
   const p = findByTeam(name);
-  if (!p) throw new HttpError(404, 'Équipe inconnue.');
+  if (!p) throw new HttpError(404, 'Pseudo inconnu.');
   return p;
 };
 

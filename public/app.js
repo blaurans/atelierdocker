@@ -5,7 +5,7 @@
  *   #portal  projection pour l'enseignant (podium + suivi), alimentée en SSE
  *   #game    le parcours de l'étudiant, après inscription
  *
- * Le token d'API est stocké en localStorage : il identifie l'équipe d'un
+ * Le token d'API est stocké en localStorage : il identifie le joueur d'un
  * poste à l'autre sans mot de passe (voir README § Sécurité).
  */
 
@@ -542,7 +542,7 @@ async function bootPlayer() {
     ?? (competitive ? '⚡ Challenge' : '🧘 Sans stress');
   $('#modeChip').className = `chip ${competitive ? 'chip-amber' : 'chip-emerald'}`;
   // Heure d'inscription : utile en fin de séance pour vérifier d'un coup
-  // d'œil que l'équipe a bien été enregistrée avant de commencer.
+  // d'œil que le joueur a bien été enregistré avant de commencer.
   $('#sinceTag').textContent = state.me.registered_at
     ? `inscrit à ${state.me.registered_at}`
     : '';
@@ -1324,7 +1324,7 @@ function buildSubmitBox(q) {
   box.appendChild(title);
   box.appendChild(el('p', 'submit-sub',
     `Ton mot de passe pour « ${q.title} » n'est écrit nulle part : c'est le `
-    + 'résultat de la manipulation ci-dessus. Il est différent pour chaque équipe.'));
+    + 'résultat de la manipulation ci-dessus. Il est différent pour chaque joueur.'));
 
   // Le mot de passe n'est pas connu du client : c'est le résultat du travail.
   // On montre la commande qui va le chercher, puis le champ où le coller.
@@ -1511,7 +1511,7 @@ $('#regForm').addEventListener('submit', async (e) => {
   msg.textContent = '';
   msg.className = 'reg-msg';
   if (!team) {
-    msg.textContent = '❌ Veuillez entrer un nom d\'équipe.';
+    msg.textContent = '❌ Veuillez entrer un pseudo.';
     return;
   }
   try {

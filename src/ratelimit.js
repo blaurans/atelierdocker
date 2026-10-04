@@ -3,7 +3,7 @@
  *
  * Le portail est ouvert sur le réseau de la classe : sans plafond, un seul
  * poste malveillant (ou un script de studied) peut sature la base et le
- * serveur. La limite est volontairement haute pour ne jamais gêner un binôme
+ * serveur. La limite est volontairement haute pour ne jamais gêner un élève
  * qui valide plusieurs missions d'affilée, mais assez basse pour rendre une
  * salve inutile.
  *
@@ -82,7 +82,7 @@ export function rateLimit({ limit = 30, windowMs = 60_000, prefix = 'g' } = {}) 
 /**
  * Adresse du client. Exportée parce que le portail l'affiche dans le tableau
  * de suivi : l'enseignant a besoin de savoir quel poste est derrière quel
- * binôme quand un élève ne répond pas.
+ * élève quand un élève ne répond pas.
  *
  * `X-Forwarded-For` n'est lu que si `TRUST_PROXY` est explicitement activé :
  * le portail tourne directement sur le port 8000, sans reverse proxy. Dans ce

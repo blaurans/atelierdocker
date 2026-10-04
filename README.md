@@ -170,7 +170,7 @@ le réseau fait réellement son travail.
 
 Trois conséquences :
 
-- **il est différent pour chaque équipe** — le communiquer à un autre binôme
+- **il est différent pour chaque joueur** — le communiquer à un autre
   ne lui sert à rien ;
 - **il est impossible à deviner** — sans jeton, la route renvoie `401` ;
 - **il est impossible à copier depuis un autre écran** — celui du voisin est
@@ -273,8 +273,9 @@ Les ateliers suivants supposent que celui-ci a été fait.
 - Rien d'autre : pas de plugin, pas d'agent, pas de configuration du portail
 
 Le PDF prévoyait trois architectures (postes locaux, VMs, serveur partagé).
-Celle-ci est l'**Option A** : postes locaux. Zéro collision de ports, aucune
-destruction croisée entre binômes, conditions réelles d'ingénierie.
+Celle-ci est l'**Option A** : postes locaux, un élève par poste. Zéro collision
+de ports, aucune destruction croisée entre élèves, conditions réelles
+d'ingénierie.
 
 ---
 
@@ -285,7 +286,7 @@ destruction croisée entre binômes, conditions réelles d'ingénierie.
 Le jeu tient en trois zones. Rien n'est caché, mais tout n'est pas évident au
 premier coup d'œil.
 
-**L'en-tête** — son nom d'équipe, son mode, l'heure d'inscription, et une
+**L'en-tête** — son pseudo, son mode, l'heure d'inscription, et une
 pastille violette `🔑 dq_a1b2c3…` : c'est son jeton d'API. **Un clic le copie**
 dans le presse-papiers, ce qui évite de le retaper dans une commande `curl`.
 Le jeton est tronqué à l'affichage : sur un vidéoprojecteur, on ne laisse pas
@@ -334,7 +335,7 @@ faite sans indice, si la compréhension est vérifiée, et le niveau atteint.
 
 | Symptôme | Cause | Solution |
 |---|---|---|
-| `Bind for 0.0.0.0:8080 failed` | missions 12-15, ports 8080/8081/8082/9090 : deux binômes sur le même poste | un poste par binôme |
+| `Bind for 0.0.0.0:8080 failed` | missions 12-15, ports 8080/8081/8082/9090 : deux élèves sur le même poste | un poste par élève |
 | `Conflict. The container name "/…" is already in use` | un essai interrompu a laissé le conteneur | les commandes sont rejouables, le `docker rm` en tête les gère |
 
 ### Pendant le TP
@@ -347,7 +348,7 @@ Le portail affiche en direct :
 - **Les ateliers les plus coûteux en indices** — la réponse à « où ça coince »
 - **Inscription rapide** — pour les retards, sans passer par le jeu
 
-La colonne IP sert à retrouver un poste : quand un binôme bloque et que vous ne
+La colonne IP sert à retrouver un poste : quand un élève bloque et que vous ne
 savez plus sur quelle machine il est, la liste vous y renvoie. Ce n'est pas une
 surveillance — seule l'adresse est mémorisée, jamais ce que l'étudiant fait.
 
@@ -375,7 +376,7 @@ curl -X POST https://atelierdocker.laurans.org/api/submit \
 ### Après le TP
 
 ```bash
-# Remettre un joueur à zéro (oubli de token, binôme réinscrit)
+# Remettre un joueur à zéro (oubli de token, réinscription)
 curl -X POST https://atelierdocker.laurans.org/api/admin/reset/CyberPhoenix
 
 # Basculer un joueur de mode — ATTENTION : efface son parcours
@@ -484,7 +485,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 173 tests
+npm test             # 174 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -557,7 +558,7 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   173 tests : format du contenu, maîtrise, migration,
+test/                   174 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
                         API, rendu du portail et des QCM, contrat, invariants,
                         qualité du contenu

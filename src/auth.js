@@ -37,12 +37,12 @@ export function identify(req) {
   const byToken = findByToken(token);
   if (byToken) {
     // On mémorise le poste : l'enseignant voit ainsi quel machine est
-    // derrière quel binôme dans le tableau de suivi.
+    // derrière quel élève dans le tableau de suivi.
     touch(byToken.id, clientIp(req));
     return byToken;
   }
 
-  // Reprise d'un slot existant : équipe + secret.
+  // Reprise d'un slot existant : pseudo + secret.
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const team = body.team ?? req.query.team;
   const secret = body.secret ?? req.query.secret;

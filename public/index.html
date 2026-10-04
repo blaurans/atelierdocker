@@ -15,7 +15,7 @@
   <header class="portal-head">
     <div class="wrap head-row">
       <div>
-        <h1 class="brand"><span class="bolt">🐳</span> ATELIER DOCKER <span class="sep">//</span> <span class="thin">COMPRENDRE AVANT DE SCORE</span></h1>
+        <h1 class="brand"><span class="bolt">🐳</span> ATELIER DOCKER <span class="sep">//</span> <span class="thin">COMPRENDRE AVANT DE RÉUSSIR</span></h1>
         <p class="tagline">Serious game · 7 ateliers · <span id="questCount">…</span> quêtes · compréhension vérifiée</p>
       </div>
       <div class="head-actions">
@@ -43,7 +43,7 @@
       <div class="table-scroll">
         <table class="board">
           <thead><tr>
-            <th>Équipe</th>
+            <th>Joueur</th>
             <th class="c-mid">Mode</th>
             <th class="c-mid">Progression</th>
             <th class="c-mid">Autonomie</th>
@@ -61,7 +61,7 @@
     <section class="panel panel-cyan" id="register-section">
       <div class="panel-head"><h2><span class="ico">📝</span> Inscription rapide</h2></div>
       <form class="reg-row" id="regForm">
-        <input id="inTeam" type="text" placeholder="Pseudo ou nom d'équipe" autocomplete="off" required minlength="2" maxlength="32">
+        <input id="inTeam" type="text" placeholder="Ton pseudo" autocomplete="off" required minlength="2" maxlength="32">
         <select id="inMode">
           <option value="competitive">⚡ Challenge — indices payants</option>
           <option value="normal">🧘 Sans stress — indices gratuits</option>
@@ -90,37 +90,47 @@
   <div id="gate" class="gate">
     <div class="gate-card">
       <div class="gate-brand"><span>🐳</span> ATELIER DOCKER</div>
-      <p class="gate-sub">Choisis ton mode. Les deux parcours sont identiques — seul le mode challenge met la pression et facture les indices.</p>
+      <p class="gate-sub">
+        Choisis ton mode. Les deux ateliers sont <b>identiques</b> : mêmes
+        missions, mêmes questions, mêmes indices. La seule différence est le
+        prix de l'aide.
+      </p>
 
       <div class="mode-pick">
         <button class="mode mode-comp" data-mode="competitive" type="button">
-          <div class="mode-top"><span class="mode-ico">⚡</span><span class="mode-badge">COMPÉTITIF</span></div>
-          <h3>Course contre la montre</h3>
+          <div class="mode-top"><span class="mode-ico">⚡</span><span class="mode-badge">Challenge</span></div>
+          <h3>Avec la pression</h3>
           <ul>
-            <li><b>Chrono</b> par quête, visible en permanence</li>
-            <li><b>Score</b> de 100 à 600 pts par mission</li>
-            <li><b>Bonus de rapidité</b> pour les premiers (60 / 30 / 15)</li>
-            <li>Podium en direct, mis à jour en temps réel</li>
+            <li>Les <b>deux premiers indices</b> coûtent de l'autonomie</li>
+            <li>Le <b>dernier</b> est toujours gratuit : personne ne reste bloqué</li>
+            <li>Le <b>temps</b> par mission est affiché, pour toi</li>
+            <li>Tes quêtes autonomes s'affichent en clair</li>
           </ul>
           <div class="mode-go">Entrer dans l'atelier →</div>
         </button>
 
         <button class="mode mode-norm" data-mode="normal" type="button">
-          <div class="mode-top"><span class="mode-ico">🧘</span><span class="mode-badge">NORMAL</span></div>
-          <h3>Apprentissage serein</h3>
+          <div class="mode-top"><span class="mode-ico">🧘</span><span class="mode-badge">Sans stress</span></div>
+          <h3>Sans pression</h3>
           <ul>
-            <li><b>Aucun chrono</b>, jamais affiché</li>
-            <li><b>Aucun score</b>, jamais calculé</li>
-            <li>Les mêmes 26 missions, dans le même ordre</li>
+            <li><b>Tous les indices sont gratuits</b>, sans consequence</li>
+            <li>Aucun <b>chrono</b> nulle part</li>
+            <li>Les mêmes <b>27 missions</b>, dans le même ordre</li>
             <li>Tu reprends où tu t'es arrêté, quand tu veux</li>
           </ul>
           <div class="mode-go">Commencer à apprendre →</div>
         </button>
       </div>
 
+      <p class="gate-foot">
+        Dans les deux modes, on mesure trois choses : où tu en es, ce que tu as
+        su faire <b>seul</b>, et ce que tu as <b>compris</b>. Aucun classement,
+        aucun score — la mesure ne se compare qu'à toi-même.
+      </p>
+
       <form class="gate-form" id="gateForm" hidden>
-        <label for="gTeam">Pseudo ou nom d'équipe</label>
-        <input id="gTeam" type="text" placeholder="ex. CyberPhoenix" autocomplete="off" required minlength="2" maxlength="32">
+        <label for="gTeam">Ton pseudo</label>
+        <input id="gTeam" type="text" placeholder="ex. Marine" autocomplete="off" required minlength="2" maxlength="32">
         <label for="gSecret">Secret <span class="opt">(optionnel)</span></label>
         <input id="gSecret" type="text" placeholder="pour protéger ton pseudo" autocomplete="off">
         <p class="gate-mode">Mode choisi : <b id="gateModeLabel"></b> <button type="button" class="linkish" id="changeMode">changer</button></p>

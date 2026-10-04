@@ -368,6 +368,34 @@ test('les scripts remplacent l\'origine comme le serveur le fait', async () => {
     'et aussi la variante http, au cas où un contenu la porterait');
 });
 
+test('les libellés de mode sont les mêmes partout', async () => {
+  // « Challenge » et « Sans stress » sont affichés à trois endroits : la
+  // configuration serveur, la page HTML (les deux cartes de choix de mode), et
+  // le tableau de suivi. Une divergence ne casse rien — elle se contente de
+  // nommer le même mode de trois façons différentes, ce qu'un enseignant voit
+  // immédiatement et un élève jamais.
+  const { MODE_LABELS } = await import('../src/config.js');
+  assert.deepEqual(MODE_LABELS, { competitive: 'Challenge', normal: 'Sans stress' });
+
+  const client = read('public/app.js');
+  const html = read('public/index.html');
+  // Le client duplique la table — une page sans build ne peut pas importer un
+  // module Node — donc les deux listes doivent être identiques, libellé par
+  // libellé.
+  for (const [mode, label] of Object.entries(MODE_LABELS)) {
+    assert.ok(client.includes(`${mode}: '${label}'`),
+      `app.js doit porter « ${mode}: '${label}' »`);
+    assert.ok(new RegExp(`<span class="mode-badge">${label}</span>`).test(html)
+      || new RegExp(`>${label}<`).test(html),
+    `index.html doit afficher « ${label} » pour le mode ${mode}`);
+  }
+
+  // Et plus aucune trace de l'ancienne nomenclature.
+  assert.doesNotMatch(html, /COMPÉTITIF|NORMAL(?! )/, 'les badges de la V1 sont restés');
+  assert.doesNotMatch(html, /Score</, 'la carte de mode promet encore un score');
+  assert.doesNotMatch(html, /Podium en direct/, 'et un podium : il n\'y en a plus');
+});
+
 test('le contrat et le README annoncent les mêmes chiffres', () => {
   const readme = read('README.md');
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);

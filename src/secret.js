@@ -19,7 +19,7 @@
  *   module 7 → les journaux de la pile Compose
  *
  * Le secret est dérivé du jeton du joueur : deux équipes n'ont donc jamais le
- * même mot de passe, et le partager entre binômes ne prouve rien.
+ * même mot de passe, et le partager entre élèves ne prouve rien.
  */
 
 import crypto from 'node:crypto';

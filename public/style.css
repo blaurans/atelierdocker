@@ -338,6 +338,9 @@ input::placeholder { color: var(--fg-faint); }
 .mode-badge {
   font-family: var(--mono); font-size: 0.66rem; font-weight: 700; letter-spacing: .14em;
   padding: 0.2rem 0.6rem; border-radius: 999px;
+  /* Le libellé reste lisible dans la source : « Challenge », pas « CHALLENGE ».
+     La casse s'affiche ici, elle n'est pas écrite deux fois. */
+  text-transform: uppercase;
 }
 .mode-comp .mode-badge { background: rgb(251 191 36 / .14); color: var(--amber); border: 1px solid rgb(251 191 36 / .3); }
 .mode-norm .mode-badge { background: rgb(52 211 153 / .14); color: var(--emerald); border: 1px solid rgb(52 211 153 / .3); }
