@@ -26,13 +26,24 @@ const state = {
   current: null,  // id de la quête affichée
   source: null,   // EventSource
   retries: 0,     // échecs de connexion successifs (backoff)
+  // Le bilan d'une validation, en attente d'affichage. Il doit survivre au
+  // repeint du panneau : le message est écrit **avant** le repeint, et lu par
+  // `paintQuest` au passage.
+  lastSuccess: null,
   // Réponses de compréhension déjà données, par quête. C'est un **miroir de la
   // base**, pas l'état de vérité : il est réhydraté depuis
   // `GET /api/quests/:id/attempts` à chaque ouverture. Sans cela, un simple
   // rechargement de page effacerait l'historique des réponses et ferait
   // repasser l'élève pour une question à laquelle il avait déjà répondu juste.
   compr: {},
+  // Indices déjà pris, par quête. Miroir de la base, comme `compr` : sans cela,
+  // un élève qui recharge la page retombe sur « Demander un indice » alors
+  // qu'il les a déjà pris tous.
+  hints: {},
 };
+
+/** Ce que la base sait d'une quête : indices pris, indices payés. */
+const etatHints = (id) => state.hints[id] ?? { hints_used: 0, hints_charged: 0 };
 
 /**
  * Les libellés des deux modes.
@@ -544,29 +555,27 @@ async function bootPlayer() {
 }
 
 /**
- * Le bilan affiché après une validation.
+ * Le message court, pour les réponses qui ne valident rien : quête déjà
+ * validée, attente de l'enseignant.
+ *
+ * La validation elle-même n'a pas de message ici : son bilan est une carte,
+ * posée par `paintQuest` à l'endroit exact où l'élève vient d'agir.
+ *
+ * Il y avait deux implémentations du bilan — celle-ci et `buildSuccess` — et
+ * l'appelant écrivait dans le champ du formulaire. Ce champ n'existe pas pour
+ * une quête validée : il est remplacé par un encart « Mission déjà validée ».
+ * Le bilan partait donc dans le vide, et l'élève validait une mission sans rien
+ * voir se passer. Une seule fonction construit la carte, un seul endroit
+ * l'affiche.
  *
  * Pas de score : il n'y en a plus. Ce que l'élève veut savoir, c'est si cette
- * quête compte pour son autonomie — parce que c'est la seule chose qui ne
- * dépende que de lui.
- */
-/**
- * Le bilan affiché après une validation, dans le champ de message du formulaire.
- *
- * Il y avait deux implémentations de ce bilan — celle-ci et `buildSuccess` — et
- * l'appelant écrivait dans un nœlu détaché après le repeint : rien ne
- * s'affichait. Une seule fonction construit la carte, un seul endroit l'affiche.
- *
- * Pas de score : il n'y en a plus. Ce que l'élève veut savoir, c'est si cette
- * quête compte pour son autonomie — parce que c'est la seule chose qui ne
- * dépende que de lui.
+ * quête compte pour ton autonomie — c'est la seule chose qui ne dépende que de
+ * lui.
  */
 function renderValidationReport(out, res) {
   if (!out) return;
-  out.className = 'submit-msg submit-ok';
-  out.textContent = '';
-  out.appendChild(buildSuccess(res));
-  toast(res.message ?? 'Mission validée !', 'ok');
+  out.className = 'submit-msg submit-warn';
+  out.textContent = res.message ?? '';
 }
 
 function renderHeader() {
@@ -676,6 +685,14 @@ function duree(ms) {
   return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')}`;
 }
 
+/** Une durée en minutes, dite en heures dès qu'elle dépasse 90 minutes. */
+function dureeCourte(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) return '—';
+  if (minutes < 90) return `${minutes} min`;
+  const h = Math.round((minutes / 60) * 10) / 10;
+  return `${h % 1 === 0 ? h : h.toFixed(1).replace('.', ',')} h`;
+}
+
 /** Rappel d'une seule mission : ce qu'elle a coûté, en une ligne. */
 function autonomieDe(h) {
   const bits = [];
@@ -692,13 +709,16 @@ function renderMap() {
 
   const head = el('div', 'map-head');
   head.appendChild(el('h3', '', 'Programme'));
-  // Le compteur porte les **minutes**, pas des points : c'est la seule unité
-  // qui dit quelque chose à l'élève. `total_points` n'existe plus dans l'API —
+  // Le compteur porte la **durée**, pas des points : c'est la seule unité qui
+  // dit quelque chose à l'élève. `total_points` n'existe plus dans l'API —
   // l'afficher produisait « undefined pts ».
-  const minutes = state.pack.total_minutes
-    ?? allQuests().reduce((a, q) => a + (q.est_minutes ?? 0), 0);
+  //
+  // La durée totale est donnée en heures, pas en minutes : « 413 min » se lit
+  // comme un défaut de conception, « ~7 h de travail » se lit comme ce que
+  // c'est. Le détail est dans l'en-tête de chaque atelier.
+  const minutes = allQuests().reduce((a, q) => a + (q.est_minutes ?? 0), 0);
   head.appendChild(el('p', 'map-count',
-    `${doneCount}/${state.pack.total_quests} missions · ~${minutes} min`));
+    `${doneCount}/${state.pack.total_quests} missions · ~${dureeCourte(minutes)}`));
   map.appendChild(head);
 
   // Aucune mission n'est verrouillée : si le joueur est bloqué, il peut
@@ -876,12 +896,48 @@ function paintQuest(q) {
 
   if (total === 0) {
     aid.appendChild(el('p', 'dim', 'Pas d\'indice pour cette mission.'));
-  } else {
+  }
+
+  // L'élève a peut-être déjà pris des indices : on ne les redemande pas au
+  // serveur, on ne les re-facture pas, et on ne lui affiche pas un bouton qui
+  // promet un indice qu'il a déjà. On part de son état.
+  const dejaPris = etatHints(q.id).hints_used;
+  if (dejaPris > 0) {
+    const reste = total - dejaPris;
+    aid.appendChild(el('p', 'hint-recap',
+      `${dejaPris} indice${dejaPris > 1 ? 's' : ''} déjà pris sur ${total}`
+      + (reste > 0
+        ? ` — il en reste ${reste}.`
+        : ' — il n\'en reste plus, mais tu as tout ce qu\'il faut.')));
+  }
+
+  if (total > 0) {
     const hintBtn = el('button', 'btn btn-ghost btn-sm', '💡 Demander un indice');
     hintBtn.type = 'button';
-    hintBtn.disabled = true;          // actif dès la première réponse du serveur
+
+    // Le bouton n'est **pas** désactivé au départ. Il l'était, « jusqu'à la
+    // première réponse du serveur » — sauf que la première réponse du serveur
+    // est celle que ce bouton déclenche. Il restait donc désactivé pour
+    // toujours : un élève avait un bouton d'indice visible, inerte, et aucune
+    // manière de le savoir. C'est le défaut « demande un indice pas dispo ».
+    //
+    // Un élève qui relit une mission a déjà pu prendre des indices : on part de
+    // ce qu'il en reste, sinon on lui propose un bouton qui ne mènera nulle
+    // part.
+    if (dejaPris > 0) {
+      hintBtn.textContent = '💡 Autre indice';
+      hintBtn.appendChild(el('span', 'dim',
+        ` (${total - dejaPris} restant${total - dejaPris > 1 ? 's' : ''})`));
+    }
+    if (dejaPris >= total) {
+      hintBtn.textContent = 'Plus d\'indice';
+      hintBtn.disabled = true;
+    }
 
     hintBtn.addEventListener('click', async () => {
+      // Désactivé **pendant** l'appel seulement. Un double-clic ferait perdre
+      // deux indices, et le second ne serait pas un indice plus utile — d'où le
+      // verrou, mais pas au départ.
       hintBtn.disabled = true;
       const lbl = el('span', 'dim', ' …');
       hintBtn.textContent = '💡 Chargement';
@@ -902,6 +958,10 @@ function paintQuest(q) {
         hintBox.appendChild(row);
 
         hintIdx = r.index + 1;
+        state.hints[q.id] = {
+          hints_used: r.index + 1,
+          hints_charged: etatHints(q.id).hints_charged + (r.autonomy_lost > 0 ? 1 : 0),
+        };
         if (r.autonomy_lost > 0) {
           hintBox.appendChild(el('p', 'hint-cost',
             `Cet indice ne compte pas pour ton autonomie.`
@@ -953,6 +1013,16 @@ function paintQuest(q) {
   // revient sur une quête ne réponde pas deux fois à la même question.
   if (q.check?.length || q.recall) {
     panel.appendChild(buildComprehension(q));
+  }
+
+  // Le bilan d'une validation vient d'être obtenu : il va entre la
+  // compréhension et le formulaire — c'est-à-dire à l'endroit exact où l'élève
+  // vient de coller son mot de passe, et qui disparaît une fois la mission
+  // validée. Un peu plus bas, le formulaire cède la place à « Mission déjà
+  // validée ».
+  if (state.lastSuccess?.quest_validated === q.number) {
+    panel.appendChild(buildSuccess(state.lastSuccess));
+    state.lastSuccess = null;
   }
 
   // ── soumission du flag
@@ -1010,6 +1080,12 @@ async function hydrateCompr(q) {
         answer: item?.kind === 'mcq' ? Number(a.answer) : answer,
       };
     }
+    // Les indices vont dans le même miroir : le bouton doit dire « Plus
+    // d'indice » après un rechargement, pas « Demander un indice ».
+    state.hints[q.id] = {
+      hints_used: r.hints_used ?? 0,
+      hints_charged: r.hints_charged ?? 0,
+    };
   } catch {
     // Réseau coupé ou joueur non identifié : l'élève voit des questions
     // neuves. C'est dégradé, pas cassé — et les réponses suivantes repartiront
@@ -1194,7 +1270,8 @@ function buildSubmitBox(q) {
   if (state.pack.completed.includes(q.id)) {
     box.appendChild(el('h3', 'submit-title', '✅ Mission déjà validée'));
     box.appendChild(el('p', 'submit-sub',
-      'Tu peux la revoir autant de fois que tu veux. Le score ne compte qu\'une fois.'));
+      'Tu peux la revoir et la relire autant de fois que tu veux : '
+      + 'elle ne compte qu\'une fois, ni pour ta progression ni pour ton autonomie.'));
     return box;
   }
 
@@ -1220,15 +1297,17 @@ function buildSubmitBox(q) {
         out.textContent = res.message;
       } else {
         input.value = '';
-        // On attend le repeint : le panneau est reconstruit, l'ancien champ de
-        // message n'existe plus. Écrire dedans sans attendre mettrait le bilan
-        // dans un nœud détaché — invisible à l'écran.
+        // Le bilan est mis en attente **avant** le repeint, pas écrit dedans.
         //
-        // On reste sur la mission validée : c'est là qu'on relit son bilan,
-        // et c'est aussi là que se trouve le bouton vers la suivante.
+        // Écrire dans `#submitMsg` ne peut pas fonctionner : pour une quête
+        // validée, le formulaire est remplacé par un encart « Mission déjà
+        // validée », qui n'a pas de champ de message. Le bilan partait donc dans
+        // le vide, et l'élève validait une mission sans rien voir se passer.
+        //
+        // On reste sur la mission validée : c'est là qu'on relit son bilan.
+        state.lastSuccess = res;
         await refresh();
-        // Le nœud vit dans le panneau repeint, pas dans l'ancien formulaire.
-        renderValidationReport($('#questPanel .submit-msg'), res);
+        toast(res.message ?? 'Mission validée !', 'ok');
       }
     } catch (err) {
       out.className = 'submit-msg submit-err';
@@ -1303,22 +1382,22 @@ function buildSuccess(res) {
   card.appendChild(el('div', 'success-head', `✅ ${res.message ?? 'Mission validée !'}`));
   card.appendChild(el('div', 'success-count', res.completed_count));
 
+  // Le message du serveur dit déjà ce que la quête a coûté — « avec 1 indice,
+  // elle compte pour ton autonomie », ou « réussie seule ». Le répéter ici
+  // produisait la même phrase deux fois de suite. Cette ligne n'apporte que ce
+  // que le message ne dit pas : la compréhension.
+  //
   // Les noms de champs viennent de `questResult()` dans src/progress.js :
   // `autonomous`, `hints_used`, `check_ok`, `check_total`, `understood`.
   const r = res.quest_result ?? {};
   const bits = [];
-  if (r.autonomous) {
-    bits.push('elle compte pour ton autonomie : réussie seule ✅');
-  } else if (r.hints_used) {
-    bits.push(`progression mais pas autonomie : `
-      + `${r.hints_used} indice${r.hints_used > 1 ? 's' : ''} demandé${r.hints_used > 1 ? 's' : ''}`);
-  }
   if (r.understood) {
     bits.push(r.check_total
-      ? `comprise du premier coup (${r.check_total})`
+      ? `comprise du premier coup (${r.check_total} question${r.check_total > 1 ? 's' : ''})`
       : 'comprise');
   } else {
-    bits.push('compréhension à revoir');
+    bits.push('⚠️ compréhension à revoir — la quête compte pour ta progression, '
+      + 'pas pour ta compréhension');
   }
   card.appendChild(el('p', 'success-total', bits.join(' · ')));
 
@@ -1344,24 +1423,15 @@ function buildSuccess(res) {
 
   if (res.time_display) card.appendChild(el('div', 'success-time', `⏱ ${res.time_display}`));
 
-  // Le passage à la mission suivante est **ici**, dans la confirmation, et pas
-  // seulement dans le bandeau de la carte. Un test humain a signalé « la fin de
-  // la quête 1 valide la quête 2 et la quête 1 reste ouverte » : la mission
-  // validée reste affichée, et rien ne disait que c'était fini. Un bouton
-  // explicite, dans le message de succès, lève l'ambiguïté.
-  if (res.unlocked_next) {
-    const q = allQuests().find((x) => x.id === res.unlocked_next);
-    const box = el('div', 'next-box');
-    box.appendChild(el('p', '', q ? `Prochaine mission : ${q.title}` : 'Prochaine mission'));
-    const go = el('button', 'btn btn-primary', 'Continuer →');
-    go.type = 'button';
-    go.addEventListener('click', () => openQuest(res.unlocked_next));
-    box.appendChild(go);
-    card.appendChild(box);
-  } else if (res.finished) {
-    card.appendChild(el('p', 'next-box',
-      '🏁 Parcours terminé. Tu peux relire n\'importe quelle mission.'));
-  }
+  // Pas de bouton « mission suivante » ici : l'encart juste en dessous, sous le
+  // formulaire remplacé, s'en charge — et il reste en place quand l'élève
+  // revient relire la mission. Deux boutons pour la même chose, c'est un de
+  // trop.
+  //
+  // Ce que la confirmation ajoute, c'est la phrase qui manquait : cette mission
+  // est terminée, et voici ce qu'elle a rapporté. Un test humain a signalé « la
+  // fin de la quête 1 valide la quête 2 et la quête 1 reste ouverte » — rien ne
+  // disait que c'était fini.
   return card;
 }
 

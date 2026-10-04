@@ -99,7 +99,18 @@ test('le client gère les trois réponses de submit', () => {
     'le breakdown n\'existe plus dans l\'API : le test le lisait et affichait « undefined »');
   assert.doesNotMatch(clientJs, /res\.(points_earned|score_total|rank)\b/);
   assert.match(clientJs, /res\.mastery/, 'le bilan doit lire la maîtrise');
-  assert.match(clientJs, /res\.unlocked_next/, 'et proposer la mission suivante');
+
+  // Le bilan d'une validation est transmis par `state.lastSuccess`, pas écrit
+  // dans le champ de message du formulaire : pour une quête validée, ce
+  // formulaire est remplacé par un encart « Mission déjà validée », sans champ
+  // de message. Le bilan partait donc dans le vide et l'élève ne voyait rien
+  // se passer.
+  assert.match(clientJs, /state\.lastSuccess = res;[\s\S]*?await refresh\(\)/,
+    'le bilan doit être mis en attente AVANT le repeint, pas écrit dedans');
+  assert.match(clientJs, /state\.lastSuccess\?\.quest_validated === q\.number/,
+    'et lu par paintQuest au passage');
+  assert.doesNotMatch(clientJs, /renderValidationReport\(\$\('#questPanel \.submit-msg'\)/,
+    'écrire dans le champ de message ne peut pas fonctionner : il n\'existe plus');
 });
 
 test('le verrouillage n\'est qu\'un guidage, activé par l\'enseignant', () => {

@@ -196,7 +196,12 @@ function stubFetch(routes = {}) {
     if (path.endsWith('/attempts')) {
       const cle = path.split('/')[3];
       return json({
-        hints_used: hintsPris, hint_count: 2, hints_charged: hintsPris,
+        // La base ne borne pas à 2 : la fixture dit `2`, mais un élève qui
+        // revient après trois prises doit lire `3`. On renvoie ce qui a
+        // réellement été pris, comme `attemptsFor` le ferait.
+        hints_used: hintsPris,
+        hint_count: pack.byId.get(cle).hint_count,
+        hints_charged: hintsPris,
         // La forme est celle de `attemptsFor()` : `kind` et `item_id` séparés,
         // `answer` en chaîne. Une fixture qui s'écarterait de cette forme ferait
         // passer le test d'hydratation pour une mauvaise raison.
@@ -818,7 +823,15 @@ test('le panneau de mission affiche énoncé, indices et point de contrôle', as
     'aucun indice ne doit être rendu avant d\'être demandé');
 
   const idxBtn = [...panel.querySelectorAll('button')].find((b) => /indice/i.test(b.textContent));
-  idxBtn.dispatchEvent(new dom.window.Event('click'));
+
+  // **Un vrai clic**, pas un `dispatchEvent`. Un `dispatchEvent` se déclenche
+  // même sur un bouton désactivé — c'est exactement le piège qui a laissé
+  // passer le défaut « demande un indice pas dispo » : le bouton partait
+  // `disabled` et rien ne l'activait, donc aucun élève ne pouvait le
+  // déclencher, et tous les tests passaient.
+  assert.equal(idxBtn.disabled, false,
+    'le bouton d\'indice doit être cliquable dès l\'ouverture de la mission');
+  idxBtn.click();
   await new Promise((r) => setImmediate(r));
 
   assert.equal(panel.querySelectorAll('.hint').length, 1, 'un indice s\'affiche après la demande');
@@ -929,6 +942,56 @@ test('une mission verrouillée ne s\'ouvre pas', async () => {
   assert.equal(text('#questPanel .quest-head h2'), pack.quests[0].title,
     'on reste sur la mission courante');
   assert.match($('#toast').textContent, /verrouill/i);
+});
+
+test('l\'indice déjà pris est connu après un rechargement', async () => {
+  stubFetch();
+  registered = [];
+  submitted = [];
+  hintsPris = 0;
+  essais = {};
+  lineaire = false;
+  const app = await loadClient();
+  store.clear();
+  await app.bootPlayer();
+
+  const q = pack.quests[0];
+  const bouton = () => [...$('#questPanel').querySelectorAll('button')]
+    .find((b) => /indice/i.test(b.textContent));
+
+  // Deux prises d'indice, puis on rouvre la mission comme après un F5.
+  for (let i = 0; i < 2; i++) {
+    bouton().click();
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.equal(hintsPris, 2, 'deux indices consommés');
+
+  app.openQuest(q.id);
+  await new Promise((r) => setTimeout(r, 20));
+
+  // Ni les indices re-affichés, ni re-facturés : la base ne rend que les
+  // décomptes, jamais le texte. Le texte ne peut pas ressortir autrement que
+  // par une nouvelle demande.
+  assert.equal($('#questPanel').querySelectorAll('.hint').length, 0,
+    'les indices ne sont pas rejoués : le serveur ne les renvoie pas');
+  assert.match($('#questPanel').textContent, /2 indices déjà pris/,
+    'l\'élève voit ce qu\'il a déjà consommé');
+  assert.match(bouton().textContent, /Autre indice/,
+    'et le bouton propose la suite, pas un doublon');
+  assert.equal(bouton().disabled, false, 'il reste cliquable s\'il en reste');
+  assert.equal(hintsPris, 2, 'rouvrir une mission ne consomme rien');
+});
+
+test('une mission sans indice ne montre pas de bouton', async () => {
+  // Une quête dont le contenu ne prévoit aucun indice ne doit pas afficher un
+  // bouton qui mènerait à un 400.
+  const sans = pack.quests.find((q) => q.hint_count === 0);
+  if (!sans) return;   // le contenu en prévoit partout : le test est sans objet
+  stubFetch();
+  registered = [];
+  app.openQuest(sans.id);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.match($('#questPanel').textContent, /Pas d\'indice/);
 });
 
 test('le client échappe tout ce qu\'il affiche', async () => {
