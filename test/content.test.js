@@ -26,7 +26,7 @@ test('les six quêtes phares sont bien présentes, au bon endroit', () => {
     { flag: 'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}', titre: 'Deux services, une machine', module: 4 },
     { flag: 'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}', titre: 'La méthode de la librairie', module: 5 },
     { flag: 'FLAG{VERDI_VOLUME_NAMED_DURABLE_AND_LISTED}', titre: 'Le volume de Docker', module: 6 },
-    { flag: 'FLAG{COMPOSE_ORCHESTRATION_TITAN}', titre: 'Compose Overlord', module: 7 },
+    { flag: 'FLAG{VERDI_PILE_RECOVERED_ON_CLEAN_MACHINE}', titre: 'Récupérer une pile entière', module: 7 },
   ];
   for (const a of attendues) {
     const q = pack.byFlag.get(a.flag);
@@ -91,7 +91,7 @@ test('les quêtes phares gardent leur technique de récupération', () => {
     'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}': ['Deux services, une machine', 4],
     'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}': ['La méthode de la librairie', 5],
     'FLAG{VERDI_VOLUME_NAMED_DURABLE_AND_LISTED}': ['Le volume de Docker', 6],
-    'FLAG{COMPOSE_ORCHESTRATION_TITAN}': ['Compose Overlord', 7],
+    'FLAG{VERDI_PILE_RECOVERED_ON_CLEAN_MACHINE}': ['Récupérer une pile entière', 7],
   };
   for (const [flag, [titre, module]] of Object.entries(attendues)) {
     const q = pack.byFlag.get(flag);
@@ -140,7 +140,7 @@ test('les quêtes phares gardent leurs commandes clés', () => {
     'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}': [/-p\s+8080:80/, /nginx/, /docker\s+exec/, /curl/, /--network/],
     'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}': [/Dockerfile/, /docker\s+build/, /EXPOSE/, /daemon off/, /docker\s+tag/],
     'FLAG{VERDI_VOLUME_NAMED_DURABLE_AND_LISTED}': [/docker\s+volume\s+ls/, /docker\s+volume\s+inspect/, /docker\s+volume\s+rm/],
-    'FLAG{COMPOSE_ORCHESTRATION_TITAN}': [/docker[-\s]compose\s+up\s+-d/, /redis/, /docker\s+compose\s+down/],
+    'FLAG{VERDI_PILE_RECOVERED_ON_CLEAN_MACHINE}': [/docker\s+compose\s+up\s+-d/, /docker\s+compose\s+down/, /redis/, /docker\s+compose\s+ps/],
   };
   for (const [flag, motifs] of Object.entries(attendues)) {
     const q = pack.byFlag.get(flag);

@@ -57,7 +57,7 @@ test('les six missions du cahier des charges sont conservées avec leur barème'
     ['FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}', 300, 'Deux services, une machine'],
     ['FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}', 400, 'La méthode de la librairie'],
     ['FLAG{VERDI_VOLUME_NAMED_DURABLE_AND_LISTED}', 500, 'Le volume de Docker'],
-    ['FLAG{COMPOSE_ORCHESTRATION_TITAN}', 600, 'Compose Overlord'],
+    ['FLAG{VERDI_PILE_RECOVERED_ON_CLEAN_MACHINE}', 600, 'Récupérer une pile entière'],
   ];
   for (const [flag, points, title] of attendus) {
     const q = pack.byFlag.get(flag);

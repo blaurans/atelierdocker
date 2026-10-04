@@ -471,7 +471,7 @@ docker compose up -d
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 132 tests
+npm test                  # 158 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -497,10 +497,15 @@ Le serveur **refuse de démarrer** si le contenu est incohérent : flag dupliqu�
 `order` en doublon, dernier indice payant, HTML glissé dans un énoncé, réponse
 recopiée de l'énoncé. L'erreur dit précisément quoi corriger.
 
-### Ce que l'atelier 1 montre pour les suivants
+### Le format des quêtes
 
-L'atelier 1 est le seul entièrement écrit dans le nouveau format, et il sert de
-modèle. Trois règles en sont sorties, toutes vérifiées par le validateur :
+Le contenu est entièrement écrit dans le format de la V2 : chaque quête porte
+des questions de compréhension, un `charge` dont le dernier indice est gratuit,
+et une justification pour chaque question. `test/format.test.js` le vérifie sur
+les 27 quêtes — c'est lui qui dira, plus tard, si une nouvelle quête sort de la
+norme.
+
+Les règles qu'il faut tenir en écrivant, et qui viennent toutes de l'atelier 1 :
 
 **1. Aucun artefact mort.** Chaque commande sert la mission suivante. L'atelier 1
 diagnostique la machine, le 2 installe Docker, le 3 vérifie qu'il répond, le 4
@@ -508,15 +513,16 @@ diagnostique l'échec le plus courant. Rien n'y est là pour « faire une
 commande ».
 
 **2. Aucun `recall` quand la commande est déjà dans l'énoncé.** Le réflexe ne
-vaut que si l'élève doit *retrouver*. Sur les quatre quêtes de l'atelier 1, il
-n'y en a qu'un — en quête 3, où la lettre « all » n'est volontairement pas
-donnée. Le validateur refuse d'ailleurs un `recall` dont la réponse figure dans
-le brief, et il a raison.
+vaut que si l'élève doit *retrouver*. Il y en a **deux** sur les vingt-sept
+quêtes : la lettre « all » à l'atelier 1, et le nom du fichier que
+`docker commit` n'écrit jamais à l'atelier 5. Partout ailleurs, la commande est
+donnée et le QCM porte la vérification. Le validateur refuse d'ailleurs un
+`recall` dont la réponse figure dans le brief, et il a raison.
 
-**3. Le mot de passe se récupère en `curl` avant l'installation.** Les quêtes 1
-et 2 ont lieu avant que Docker existe sur la machine ; elles utilisent donc
-`curl`, plus simple, qui apprend au passage que le mot de passe est une URL.
-C'est aussi pour ça que l'attente du module 1 accepte `curl`.
+**3. Le mot de passe se récupère sans rien supposer.** Ni réseau, ni volume, ni
+image à construire : la commande ne dépend que de Docker et d'Internet. Les deux
+premières quêtes utilisent `curl`, parce que Docker n'existe pas encore sur la
+machine à ce moment-là.
 
 ### Structure
 
@@ -533,7 +539,8 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   132 tests : maîtrise, migration, API, rendu, contrat,
+test/                   158 tests : format du contenu, maîtrise, migration,
+                        règles Markdown, gitignore, API, rendu, contrat,
                         invariants, qualité du contenu, plafonds de débit
 docs/CONTRACTS.md       contrat de données et d'API
 ```

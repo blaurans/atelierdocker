@@ -1,142 +1,275 @@
-// Module 7 — Docker Compose
-// La quête phare qui termine le module est la mission officielle n°6 « Compose Overlord ».
+// Atelier 7 — Décrire la pile
+//
+// Dernier atelier du chantier. La librairie a sa base, son site, son réseau.
+// Jusqu'ici, tout cela s'est lancé à la main, commande par commande, dans un
+// terminal qu'on oublie derrière soi.
+//
+// Compose décrit **la pile entière** dans un fichier. C'est la dernière pièce :
+// ce qui rend le déploiement transmissible à quelqu'un d'autre.
+//
+// L'atelier est volontairement le plus court — trois quêtes, 63 minutes. Le
+// concept est unique et la syntaxe s'apprend en écrivant. Surchargé, l'atelier
+// deviendrait une leçon de YAML.
+//
+// Et l'atelier finit sur ce qui reste à faire, parce que la migration s'arrête
+// là : un volume ne fait pas une sauvegarde, et une pile décrite n'est pas
+// déployée ailleurs toute seule.
 export default {
   meta: {
-    slug: 'm7-docker-compose',
+    slug: 'm7-decrire-la-pile',
     module: 7,
-    title: 'Docker Compose',
-    tagline: 'Décrire toute une pile dans un seul fichier, puis la piloter',
-    icon: '⚡',
+    title: 'Décrire la pile',
+    tagline: 'Toute la librairie dans un fichier, puis la piloter',
+    icon: '🧾',
   },
 
   quests: [
     {
       id: 'm7-01-un-seul-fichier',
       order: 1,
-      title: 'Un seul fichier pour tout dire',
+      title: 'Un seul fichier',
       points: 50,
-      flag: 'FLAG{COMPOSE_YAML_VALIDATED_CONFIG}',
+      flag: 'FLAG{COMPOSE_FILE_VALIDATED_BEFORE_RUN}',
       estMinutes: 18,
-      brief: `# Un seul fichier pour tout dire
+      brief: `# Un seul fichier
 
-Écrire une pile de conteneurs avec des \`docker run\` à la chaîne, c'est long et fragile. Docker Compose décrit l'ensemble dans **un seul fichier YAML**, que tu peux relire, versionner et partager.
+Depuis l'atelier 4, la librairie a deux services. Pour les lancer, on a tapé :
+
+\`\`\`bash
+docker network create reseau-verdi
+docker run -d --name verdi-db --network reseau-verdi -v donnees-verdi:/data redis:alpine
+docker run -d --name verdi --network reseau-verdi -p 8080:80 nginx:alpine
+\`\`\`
+
+Trois lignes. Mais dans quel ordre, avec quel réseau, quel volume, quel port ? Si
+l'administrateur doit reconstruire ça dans six mois sur une machine neuve, il
+n'a rien sous la main.
+
+Compose écrit la description **dans un fichier**. Un fichier qu'on relit, qu'on
+versionne, et qu'on peut transmettre.
 
 **Ta mission**
 
-1. Vérifie que Compose est installé, et regarde son aide :
+1. Vérifie que Compose est présent. Il est venu avec l'installation de l'atelier 1,
+   sous le nom \`docker-compose-plugin\` :
 
 \`\`\`bash
 docker compose version
-docker compose --help
 \`\`\`
 
-2. Compare avec le résultat qu'on obtient à la main : Compose ne lance rien tant que tu ne le demandes pas, il se contente de décrire.
-
-3. Prépare ton projet et écris un \`docker-compose.yml\` minimal : un seul service, un port publié, une variable d'environnement.
+2. Prépare le projet. Le fichier peut s'appeler \`compose.yaml\` ou
+   \`docker-compose.yml\` — les deux marchent. On va écrire la pile **de la
+   librairie**, pas un exemple :
 
 \`\`\`bash
-mkdir -p ~/arena-compose && cd ~/arena-compose
-cat > docker-compose.yml <<'EOF'
+mkdir -p ~/verdi-pile && cd ~/verdi-pile
+cat > compose.yaml <<'EOF'
 services:
+  db:
+    image: redis:alpine
+    container_name: verdi-db
+    volumes:
+      - donnees-verdi:/data
+
   web:
     image: nginx:alpine
-    container_name: compose-preview
+    container_name: verdi
     ports:
-      - "8081:80"
-    environment:
-      - "ARENA_BIENVENUE=bienvenue-dans-l-arene"
-    restart: unless-stopped
+      - "8080:80"
+
+volumes:
+  donnees-verdi:
 EOF
 \`\`\`
 
-4. Valide le fichier **avant** de lancer quoi que ce soit :
+3. **Valide avant de lancer.** C'est le geste le plus important de l'atelier :
 
 \`\`\`bash
 docker compose config
 \`\`\`
 
-La commande affiche la configuration telle que Docker l'a comprise : services, ports, variables, et même le nom du réseau qui sera créé.
+La commande affiche la pile telle que Docker l'a comprise. Lis-la : services,
+volumes, ports. Si une faute de frappe s'y glisse, tu le vois ici.
 
-5. Relis la sortie et retrouve ta variable d'environnement : Compose vient de la normaliser pour toi.
-
-6. Vérifie l'état de tes projets :
+4. Vérifie que Compose n'a **rien** lancé. Un fichier décrit, il n'exécute pas :
 
 \`\`\`bash
 docker compose ls
+docker ps
 \`\`\`
+
+5. **L'instruction manquante.** Deux services doivent se joindre par leur nom,
+   et Compose ne le fait que si tu le dis. Ajoute la dépendance :
+
+\`\`\`bash
+cat > compose.yaml <<'EOF'
+services:
+  db:
+    image: redis:alpine
+    container_name: verdi-db
+    volumes:
+      - donnees-verdi:/data
+
+  web:
+    image: nginx:alpine
+    container_name: verdi
+    ports:
+      - "8080:80"
+    networks:
+      - verdi
+    depends_on:
+      - db
+
+networks:
+  verdi:
+
+volumes:
+  donnees-verdi:
+EOF
+docker compose config --quiet && echo "fichier valide"
+\`\`\`
+
+6. Relis ce que Compose a compris, et cherche une chose en particulier : le nom
+   du réseau. Compose en a créé un, qui n'existait pas.
+
+**Ce que tu observes**
+
+- Étape 3 : \`docker compose config\` affiche toute la pile sans rien lancer. C'est
+  le garde-fou : une faute est visible avant qu'elle ne coûte.
+- Étape 4 : \`docker compose ls\` ne liste rien, \`docker ps\` ne montre pas les
+  conteneurs. Le fichier **décrit**, il ne fait rien.
+- \`config\` affiche un réseau \`verdi_pile_verdi\` — un nom que tu n'as jamais écrit,
+  construit à partir du nom du projet et du réseau déclaré.
 
 **Bon à retenir**
 
-- Le fichier peut s'appeler \`compose.yaml\` ou \`docker-compose.yml\`. Les deux marchent.
-- \`docker compose config\` est ton garde-fou : il détecte une faute de frappe avant que tu ne la paies.
-- Dans Compose v2, la ligne \`version:\` est inutile : elle est même signalée comme obsolète. Ne la recopie pas depuis de vieux tutoriels.
-- \`environment:\` accepte deux écritures : \`MOT: valeur\` ou \`MOT=valeur\`. Ici on utilise la liste avec le signe égal.
+- \`depends_on\` décrit un **ordre de démarrage**, pas une disponibilité. La base
+  peut ne pas encore accepter de connexions quand le site se lève. C'est un
+  point que la plupart des déploiements glossent.
+- Dans Compose v2, la ligne \`version:\` est inutile — elle est même signalée comme
+  obsolète. Ne la recopie pas depuis de vieux tutoriels.
+- \`environment:\` accepte deux écritures, \`MOT: valeur\` et \`MOT=valeur\`. Compose
+  normalise les deux.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort des journaux de la pile. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
+Un service Compose peut aller chercher le mot de passe dans ses propres
+journaux — c'est ce que fait la commande ci-dessous :
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/atelier-m7 && cd /tmp/atelier-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
 \`\`\`
 
-Le mot de passe s'affiche dans les journaux : envoie-le tel quel au portail.`,
+Le mot de passe s'affiche dans les journaux de la pile.`,
       hints: [
-        "La commande qui valide un fichier Compose s'appelle `config`, et elle n'exécute aucun conteneur.",
-        "Le fichier doit contenir une clé `services`, puis le nom du service, puis son image.",
+        "L'indentation est la syntaxe de YAML : deux espaces par niveau. Une tabulation, ou un espace manquant, fait échouer `docker compose config` avec un message qui indique la ligne.",
+        "`docker compose config` se lance depuis le répertoire qui contient le fichier. Sinon Docker ne trouve rien à décrire.",
+        "`depends_on:` prend une liste de services, avec un `-` devant chacun. C'est un ordre de démarrage, pas une attente de disponibilité.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm7-01-decrire',
+          kind: 'mcq',
+          prompt: 'Que fait un fichier `compose.yaml` ?',
+          choices: [
+            'Il décrit la pile, sans rien lancer',
+            'Il lance la pile dès qu\'il est écrit',
+            'Il construit les images manquantes',
+            'Il remplace le Dockerfile',
+          ],
+          answer: 0,
+          explanation: "Un fichier Compose décrit. Rien ne tourne tant que tu n'as pas demandé `up`. C'est ce qui permet de relire et de corriger avant de lancer quoi que ce soit.",
+          required: true,
+        },
+        {
+          id: 'm7-01-depends',
+          kind: 'mcq',
+          prompt: 'Que garantit `depends_on` entre deux services ?',
+          choices: [
+            'Un ordre de démarrage, pas que le service soit prêt',
+            'Que le second attend que le premier accepte les connexions',
+            'Que le second ne démarre jamais si le premier échoue',
+            'Rien : c\'est décoratif',
+          ],
+          answer: 0,
+          explanation: "C'est l'erreur la plus fréquente sur Compose. `depends_on` ordonne le démarrage et rien d'autre : le service peut être lancé et pas encore prêt. Les vraies attentes se déclarent dans les `healthcheck`.",
+          required: true,
+        },
+        {
+          id: 'm7-01-version',
+          kind: 'boolean',
+          prompt: 'Dans Compose v2, la ligne `version: \"3.8\"` est encore utile.',
+          answer: false,
+          explanation: "Non, elle est signalée comme obsolète. Compose v2 lit le format directement ; la ligne est ignorée, et les vieux tutoriels qui la proposent vous font perdre une ligne.",
+          required: false,
+        },
       ],
       solution: `\`\`\`bash
 docker compose version
-# -> Docker Compose version v2.x.x
+# -> Docker Compose version v5.1.0
 
-docker compose --help
-# -> Define and run multi-container applications with Docker
-
-mkdir -p ~/arena-compose && cd ~/arena-compose
-cat > docker-compose.yml <<'EOF'
+mkdir -p ~/verdi-pile && cd ~/verdi-pile
+cat > compose.yaml <<'EOF'
 services:
+  db:
+    image: redis:alpine
+    container_name: verdi-db
+    volumes:
+      - donnees-verdi:/data
+
   web:
     image: nginx:alpine
-    container_name: compose-preview
+    container_name: verdi
     ports:
-      - "8081:80"
-    environment:
-      - "ARENA_BIENVENUE=bienvenue-dans-l-arene"
-    restart: unless-stopped
+      - "8080:80"
+    networks:
+      - verdi
+    depends_on:
+      - db
+
+networks:
+  verdi:
+
+volumes:
+  donnees-verdi:
 EOF
 
 docker compose config
-# -> name: arena-compose
-#    services:
-#      web:
-#        container_name: compose-preview
-#        environment:
-#          ARENA_BIENVENUE: bienvenue-dans-l-arene
-#        image: nginx:alpine
-#        networks:
-#          default: null
-#        ports:
-#          - mode: ingress
-#            target: 80
-#            published: "8081"
-#            protocol: tcp
-#        restart: unless-stopped
-#    networks:
-#      default:
-#        name: arena-compose_default
+# -> name: verdi-pile
+# -> services:
+# ->   db:
+# ->     volumes:
+# ->       - type: volume
+# ->         source: donnees-verdi
+# ->         target: /data
+# ->   web:
+# ->     networks:
+# ->       verdi: {}
+# ->     ports:
+# ->       - mode: ingress
+# ->         target: 80
+# ->         published: "8080"
+# ->     depends_on:
+# ->       db:
+# ->         condition: service_started
+# -> networks:
+# ->   verdi:
+# ->     name: verdi-pile_verdi
 
 docker compose ls
-# -> la liste des projets Compose presents sur la machine
-\`\`\``,
-      teaches: ['docker compose version', 'docker compose config', 'fichier YAML', 'clé services', 'environment'],
+# -> (rien : le fichier décrit, il ne lance pas)
+\`\`\`
+
+\`verdi-pile_verdi\` est le nom du réseau : le nom du projet, un tiret bas, puis le
+réseau déclaré. Compose l'a inventé, et il le recyclera tel quel.`,
+      teaches: ['docker compose version', 'docker compose config', 'compose.yaml', 'clé services', 'depends_on'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/atelier-m7 && cd /tmp/atelier-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
-      checkpoint: "Tu as réussi quand `docker compose config` affiche ton fichier normalisé, avec le nom du réseau que Compose créera et la variable d'environnement dans la section environment.",
+      checkpoint: "Tu as compris quand tu sais dire ce que `depends_on` ne garantit pas — et pourquoi `config` se lance avant `up`.",
     },
 
     {
@@ -144,370 +277,373 @@ docker compose up -d && sleep 3 && docker compose logs journal && docker compose
       order: 2,
       title: 'Piloter la pile',
       points: 50,
-      flag: 'FLAG{COMPOSE_UP_DOWN_MANAGED_PROJECT}',
-      estMinutes: 20,
+      flag: 'FLAG{COMPOSE_UP_PS_LOGS_READ_SITE}',
+      estMinutes: 16,
       brief: `# Piloter la pile
 
-Tout ce que tu faisais conteneur par conteneur, Compose le fait pour un projet entier : démarrer, regarder, entrer, arrêter, nettoyer.
+Le fichier est écrit. Maintenant on le fait vivre, et surtout on le **pilote** sans
+connaître les commandes de la semaine passée.
 
 **Ta mission**
 
-1. Enrichis le projet avec deux services et un volume nommé :
+1. Lance toute la pile d'un coup. \`up\` veut dire « monte » :
 
 \`\`\`bash
-cd ~/arena-compose
-cat > docker-compose.yml <<'EOF'
-services:
-  web:
-    image: nginx:alpine
-    container_name: compose-web
-    ports:
-      - "8081:80"
-    restart: unless-stopped
-    volumes:
-      - arena-scratch:/scratch
-
-  ticker:
-    image: alpine:3.20
-    container_name: compose-ticker
-    command: sh -c 'echo "pile demarree"; sleep 900'
-
-volumes:
-  arena-scratch:
-EOF
-\`\`\`
-
-Note la clé \`volumes:\` tout en bas : c'est elle qui **déclare** le volume nommé. Sans elle, Compose complainterait.
-
-2. Démarre toute la pile en arrière-plan :
-
-\`\`\`bash
+cd ~/verdi-pile
 docker compose up -d
 docker compose ps
 \`\`\`
 
-3. Lis ce que dit le service \`ticker\` : il affiche son message de démarrage.
+2. Vérifie que les **deux** services tournent, et pas seulement celui du site :
 
 \`\`\`bash
-docker compose logs ticker
+docker compose ps
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8080
 \`\`\`
 
-4. Entre dans un service en cours de route et vérifie le volume partagé :
+3. Lis les journaux de toute la pile, puis d'un service seul. L'option \`-f\`
+   suit en direct — c'est l'équivalent de \`docker logs -f\` :
 
 \`\`\`bash
-docker compose exec web sh -c 'ls -la /scratch && echo note > /scratch/note.txt && ls -la /scratch'
-curl -I http://localhost:8081
+docker compose logs
+docker compose logs db
+docker compose logs -f --tail 5
 \`\`\`
 
-5. Regarde ce que Compose a créé pour toi : un réseau et un volume, tous deux préfixés par le nom du projet.
+4. Entre dans un service **de la pile**, sans \`docker exec\` :
 
 \`\`\`bash
-docker compose ls
-docker volume ls
-docker network ls
+docker compose exec web sh
 \`\`\`
 
-6. Arrête et supprime la pile. Les conteneurs et le réseau disparaissent, **le volume reste** :
+Vérifie depuis l'intérieur que la base est joignable par son nom, puis sors :
+
+\`\`\`bash
+docker compose exec web sh -c 'ping -c 1 db'
+\`\`\`
+
+5. Arrête **le site** sans toucher à la base, et regarde ce que Compose fait :
+
+\`\`\`bash
+docker compose stop web
+docker compose ps
+docker compose start web
+\`\`\`
+
+6. Et pour finir : qu'est-ce que \`down\` ne fait **pas** ? Prédis la réponse, puis
+   vérifie :
 
 \`\`\`bash
 docker compose down
 docker volume ls
 \`\`\`
 
-7. Relance, puis fais le grand nettoyage : \`down -v\` supprime aussi les volumes déclarés dans le fichier.
+Le volume \`donnees-verdi\` est-il encore là ?
+
+**Ce que tu observes**
+
+- Étape 1 : deux conteneurs montent. \`up -d\` les détache, comme \`docker run -d\`.
+- Étape 3 : \`docker compose logs\` sans nom affiche **tous** les services, ce qui
+  est exactement l'intérêt — le diagnostic est dans un seul endroit.
+- Étape 4 : \`exec\` prend le **nom du service**, pas le nom du conteneur. Le fichier
+  fait l'abstraction.
+- Étape 6 : \`down\` arrête et supprime les conteneurs et les réseaux du projet. Il
+  **ne touche pas** aux volumes nommés. C'est la raison pour laquelle tes
+  données sont encore là.
+
+**Bon à retenir**
+
+\`docker compose down -v\` supprime les volumes. Cette lettre \`-v\` est la seule
+difference entre « je redeploie » et « je repars de zéro ». Ne l'écrivez jamais
+sans y avoir pensé.
+
+**Et le vrai réflexe**
+
+Un déploiement, c'est trois commandes et un fichier. \`config\` pour vérifier,
+\`up -d\` pour monter, \`logs\` pour regarder. Le reste est de la curiosity.
+
+**Ton mot de passe**
 
 \`\`\`bash
+export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+mkdir -p /tmp/atelier-m7b && cd /tmp/atelier-m7b && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
+docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
+\`\`\``,
+      hints: [
+        "`docker compose ps` affiche une ligne par service, avec son état. C'est l'équivalent de `docker ps` pour toute la pile.",
+        "`docker compose logs` sans nom affiche tous les services. C'est ce qui fait gagner du temps en cas de panne : un seul endroit à regarder.",
+        "Après `docker compose down`, un `docker compose up -d` reconstruit tout. Les volumes restent, donc les données aussi — sauf si tu as ajouté `-v`.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      // Pas de `recall` : `down` est écrit dans l'énoncé. La règle de l'atelier
+      // est constante — le réflexe ne vaut que là où l'élève doit retrouver, et
+      // dans un atelier où toutes les commandes sont données, il n'y a rien à
+      // retrouver.
+      check: [
+        {
+          id: 'm7-02-down',
+          kind: 'mcq',
+          prompt: 'Que fait `docker compose down` ?',
+          choices: [
+            'Il arrête et supprime les conteneurs et les réseaux, mais garde les volumes',
+            'Il arrête tout, y compris les données',
+            'Il arrête un seul service',
+            'Il relance la pile à jour',
+          ],
+          answer: 0,
+          explanation: "C'est ce qui rend le redéploiement possible sans perdre les données. Le `-v` est la seule différence entre « je redeploie » et « je repars de zéro ».",
+          required: true,
+        },
+        {
+          id: 'm7-02-exec',
+          kind: 'boolean',
+          prompt: '`docker compose exec` utilise le nom du service, pas le nom du conteneur.',
+          answer: true,
+          explanation: "Vrai. C'est tout l'intérêt du fichier : on ne manipule plus de conteneurs nommés, mais des services décrits. Le nom du service suffit, et le reste est de l'abstraction.",
+          required: true,
+        },
+      ],
+      solution: `\`\`\`bash
+cd ~/verdi-pile
+
 docker compose up -d
-docker compose down -v
+# -> Container verdi-db   Created
+# -> Container verdi      Created
+# -> Network verdi-pile_verdi  Created
+# -> Container verdi-db   Started
+# -> Container verdi      Started
+
+docker compose ps
+# -> NAME       IMAGE           STATUS
+# -> verdi-db   redis:alpine    Up 2 seconds
+# -> verdi      nginx:alpine    Up 2 seconds
+
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8080
+# -> 200
+
+docker compose logs
+# -> verdi-db 1:1 ... * Ready to accept connections
+# -> verdi    1:1 ... start worker processes
+
+docker compose logs db
+# -> verdi-db 1:1 ... * Ready to accept connections
+
+docker compose exec web sh -c 'ping -c 1 db'
+# -> PING db (172.19.0.2): 56 data bytes
+# -> 64 bytes from 172.19.0.2: seq=0 ttl=64 time=0.089 ms
+
+docker compose stop web
+docker compose ps
+# -> verdi-db  Up 30 seconds
+# -> verdi     Exited (0)
+docker compose start web
+# -> verdi  Started
+
+docker compose down
+# -> Container verdi      Removed
+# -> Container verdi-db   Removed
+# -> Network verdi-pile_verdi  Removed
+
 docker volume ls
+# -> DRIVER    VOLUME NAME
+# -> local     donnees-verdi     <- toujours là : les données ont survécu
+\`\`\``,
+      teaches: ['docker compose up', 'docker compose ps', 'docker compose logs', 'docker compose exec', 'docker compose down'],
+      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+mkdir -p /tmp/atelier-m7b && cd /tmp/atelier-m7b && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
+docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
+      checkpoint: "Tu as compris quand tu sais dire ce que `down` laisse en place, et quelle lettre rend cette commande irréversible.",
+    },
+
+    {
+      id: 'm7-03-recuperer-une-pile-entiere',
+      order: 3,
+      title: 'Récupérer une pile entière',
+      points: 600,
+      flag: 'FLAG{VERDI_PILE_RECOVERED_ON_CLEAN_MACHINE}',
+      estMinutes: 20,
+      brief: `# Récupérer une pile entière
+
+Dernier jalon du chantier. L'administrateur part en vacances, et la machine de
+la librairie **meurt** : disque mort, ou réinstallation complète.
+
+Il ne garde qu'une chose : les deux fichiers texte. Tout le reste — la base, le
+site, le réseau, les conteneurs — disparaît avec la machine.
+
+La question du jour : **peut-on tout retrouver ?**
+
+**Ta mission**
+
+1. Récupère la pile depuis la machine neuve. Un seul fichier à recopier :
+
+\`\`\`bash
+mkdir -p ~/verdi-pile && cd ~/verdi-pile
+cp ~/compose-bien-sauvegarde.yaml compose.yaml
+\`\`\`
+
+2. Regarde ce qui existe déjà sur cette machine : des conteneurs qui tournent,
+   que personne ne sait expliquer.
+
+\`\`\`bash
 docker compose ls
+docker ps -a
+\`\`\`
+
+3. Vérifie le fichier, puis monte la pile :
+
+\`\`\`bash
+docker compose config --quiet && echo "valide"
+docker compose up -d
+docker compose ps
+\`\`\`
+
+4. **La démonstration.** Coupe tout, et reconstruis depuis le seul fichier :
+
+\`\`\`bash
+docker compose down
+docker ps -a
+docker compose up -d
+docker compose ps
+\`\`\`
+
+Deux conteneurs sont apparus, avec le bon réseau, le bon port, et le bon
+volume. Aucune commande de \`docker run\` n'a été tapée.
+
+5. Teste que les données ont bien survécu au cycle. Écris, coupe, reconstruis,
+   relis :
+
+\`\`\`bash
+docker compose exec db redis-cli SET cle "la librairie tient debout"
+docker compose down
+docker compose up -d
+docker compose exec db redis-cli GET cle
 \`\`\`
 
 **Ce que tu observes**
 
-- Le nom de projet, par défaut, est celui du dossier. Tout ce que Compose crée porte ce préfixe.
-- \`up -d\` crée les ressources manquantes, démarre, et met les logs en arrière-plan.
-- \`down\` arrête et supprime conteneurs et réseau. \`down -v\` supprime en plus les volumes nommés.
-- Une pile peut être relancée autant de fois que tu veux, sans jamais retaper une commande \`docker run\`.
+- Étape 3 : \`config\` valide avant de lancer, comme à la quête 1. Le garde-fou ne
+  prend pas de vacances.
+- Étape 4 : la pile **revient à l'identique** après un \`down\`. C'est la
+  définition d'un déploiement reproductible.
+- Étape 5 : les données ont traversé le cycle parce qu'elles vivent dans un
+  volume nommé, pas dans un conteneur.
+
+**Ce que ça change pour la librairie**
+
+C'est la réponse à la question posée à l'atelier 1 : « comment on fait si la
+machine est morte ? ». On ne restaure pas une image, on ne copie pas des
+conteneurs. On recopie **deux fichiers**, et on rejoue trois commandes.
+
+Un déploiement tient dans un fichier versionné. C'est tout.
+
+**Ce qui reste à faire — et c'est important**
+
+Le chantier s'arrête ici, mais la librairie n'est pas terminée. Trois choses ne
+sont pas faites, et l'élève doit les nommer :
+
+1. **La sauvegarde.** Un volume n'est pas une sauvegarde. Il est sur la même
+   machine que ce qu'il protège : si le disque meurt, le volume meurt avec.
+2. **La version.** Le fichier est écrit, mais rien n'est versionné. Un
+   \`git init\` et un \`git commit\` donneraient un historique des changements de
+   configuration.
+3. **Le HTTPS.** Le site est joignable en \`http://localhost\`, sans certificat.
+   Pour le public, il faut un nom de domaine et un certificat — c'est le sujet
+   d'un atelier que l'atelier 4 a préparé sans le dire.
+
+**La phrase à retenir du chantier**
+
+Un conteneur ne porte pas de données. Une image ne porte pas de secrets. Un
+fichier ne porte pas l'état. Répartir ce qui doit survivre dans des endroits
+qui survivent : c'est tout l'atelier.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort des journaux de la pile. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 4 && docker compose logs journal && docker compose down
-\`\`\`
-
-Le mot de passe s'affiche dans les journaux : envoie-le tel quel au portail.`,
+mkdir -p /tmp/atelier-m7c && cd /tmp/atelier-m7c && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-recuperer-une-pile-entiere/raw?token=$ARENA_TOKEN" > compose.yaml
+docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
+\`\`\``,
       hints: [
-        "La commande qui démarre toute la pile s'accompagne de l'option `-d` pour ne pas bloquer ton terminal.",
-        "Pour lire la sortie d'un seul service, la commande de logs accepte le nom du service en argument.",
+        "`docker compose ls` liste les **projets**, pas les conteneurs. Un conteneur qui tourne sans projet n'apparaît pas — c'est le premier indice du problème.",
+        "Un `down` suivi d'un `up -d` dans le même répertoire reconstruit tout. C'est exactement ce qu'un redéploiement fait en production.",
+        "Les données survivent parce qu'elles sont dans un volume nommé. Un dossier monté ferait la même chose ; un fichier dans le conteneur, non.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm7-03-reconstruire',
+          kind: 'mcq',
+          prompt: 'Après un `docker compose down` suivi d\'un `docker compose up -d`, qu\'est-ce qui a été reconstruit ?',
+          choices: [
+            'Tout, à partir du seul fichier : conteneurs, réseau, port et volume',
+            'Rien : il faut tout retaper à la main',
+            'Seulement les images',
+            'Seulement les données',
+          ],
+          answer: 0,
+          explanation: "C'est la définition d'un déploiement reproductible. Aucune commande `docker run` n'est tapée, et c'est le fichier qui décrit tout.",
+          required: true,
+        },
+        {
+          id: 'm7-03-sauvegarde',
+          kind: 'boolean',
+          prompt: 'Un volume nommé constitue une sauvegarde des données de la librairie.',
+          answer: false,
+          explanation: "Faux, et c'est la dernière chose à retenir du chantier. Le volume est sur la même machine que ce qu'il protège : si le disque meurt, il meurt avec. Il faut une copie **ailleurs**.",
+          required: true,
+        },
+        {
+          id: 'm7-03-ls',
+          kind: 'mcq',
+          prompt: 'Que liste `docker compose ls` ?',
+          choices: [
+            'Les projets Compose, c\'est-à-dire les répertoires qui contiennent un fichier',
+            'Tous les conteneurs de la machine',
+            'Les volumes',
+            'Les images',
+          ],
+          answer: 0,
+          explanation: "Un conteneur qui tourne sans projet Compose n'apparaît pas dans cette liste. C'est ce qui rend visible, dès la première étape, qu'une machine a perdu sa trace.",
+          required: true,
+        },
       ],
       solution: `\`\`\`bash
-cd ~/arena-compose
-cat > docker-compose.yml <<'EOF'
-services:
-  web:
-    image: nginx:alpine
-    container_name: compose-web
-    ports:
-      - "8081:80"
-    restart: unless-stopped
-    volumes:
-      - arena-scratch:/scratch
-
-  ticker:
-    image: alpine:3.20
-    container_name: compose-ticker
-    command: sh -c 'echo "pile demarree"; sleep 900'
-
-volumes:
-  arena-scratch:
-EOF
-
-docker compose up -d
-# -> Network arena-compose_default Created
-#    Container compose-ticker Started
-#    Container compose-web Started
-
-docker compose ps
-# -> compose-ticker  alpine:3.20   Up ...
-#    compose-web     nginx:alpine  Up ...  0.0.0.0:8081->80/tcp
-
-docker compose logs ticker
-# -> compose-ticker  | pile demarree
-
-docker compose exec web sh -c 'ls -la /scratch && echo note > /scratch/note.txt && ls -la /scratch'
-# -> note.txt apparaît dans /scratch
-curl -I http://localhost:8081
-# -> HTTP/1.1 200 OK
+mkdir -p ~/verdi-pile && cd ~/verdi-pile
+cp ~/compose-bien-sauvegarde.yaml compose.yaml
 
 docker compose ls
-# -> arena-compose  running(2)  /home/.../arena-compose/docker-compose.yml
-docker volume ls
-# -> local  arena-compose_arena-scratch
-docker network ls
-# -> arena-compose_default  bridge  local
+# -> (rien : la nouvelle machine ne connaît aucun projet)
 
-docker compose down
-# -> conteneurs et réseau supprimés, le volume reste
-docker volume ls
-# -> local  arena-compose_arena-scratch
+docker ps -a
+# -> des conteneurs sans projet : personne ne sait d'où ils viennent
 
+docker compose config --quiet && echo "valide"
 docker compose up -d
-docker compose down -v
-# -> supprime aussi le volume déclaré dans le fichier
-docker volume ls
-# -> plus de volume arena-compose
-docker compose ls
-# -> plus de projet arena-compose
-\`\`\``,
-      teaches: ['docker compose up', 'docker compose ps', 'docker compose logs', 'docker compose exec', 'docker compose down'],
-      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 4 && docker compose logs journal && docker compose down`,
-      checkpoint: "Tu as réussi quand `docker compose logs ticker` affiche le message du service, quand après `docker compose down` puis `docker compose up -d` les deux services sont de nouveau démarrés sans aucune autre commande, et quand les journaux de la pile t'ont affiché ton mot de passe.",
-    },
-
-    {
-      id: 'm7-03-compose-overlord',
-      order: 3,
-      title: 'Compose Overlord',
-      points: 600,
-      flag: 'FLAG{COMPOSE_ORCHESTRATION_TITAN}',
-      estMinutes: 25,
-      brief: `# Boss final — Compose Overlord
-
-Objectif : orchestrer une pile multi-services, une application web et une base de données, interconnectée via \`docker-compose.yml\`.
-
-**Mission**
-
-1. Crée un dossier pour le projet :
-
-\`\`\`bash
-mkdir -p ~/arena-boss && cd ~/arena-boss
-\`\`\`
-
-2. Écris le service applicatif \`app.py\` :
-
-\`\`\`bash
-cat > app.py <<'PYEOF'
-from http.server import SimpleHTTPRequestHandler, HTTPServer
-
-
-class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain; charset=utf-8")
-        self.end_headers()
-        message = "BOSS COMPOSE VAINCU !\\n"
-        message += "Felicitations, votre pile multi-conteneurs communique parfaitement.\\n"
-        message += "Je suis servi par boss_webapp, sur le port 3000.\\n"
-        self.wfile.write(message.encode("utf-8"))
-
-
-if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", 3000), Handler)
-    server.serve_forever()
-PYEOF
-\`\`\`
-
-3. Crée le descripteur d'infrastructure \`docker-compose.yml\` :
-
-\`\`\`bash
-cat > docker-compose.yml <<'EOF'
-services:
-  webapp:
-    image: python:3.11-alpine
-    container_name: boss_webapp
-    working_dir: /app
-    volumes:
-      - .:/app
-    command: python app.py
-    ports:
-      - "3000:3000"
-    depends_on:
-      - database
-    restart: unless-stopped
-
-  database:
-    image: redis:alpine
-    container_name: boss_redis
-    restart: unless-stopped
-EOF
-\`\`\`
-
-4. Démarre l'ensemble des conteneurs en une seule commande :
-
-\`\`\`bash
-docker compose up -d
-\`\`\`
-
-5. Inspecte les conteneurs et le réseau automatiques créés par Compose :
-
-\`\`\`bash
 docker compose ps
-docker network ls
-\`\`\`
+# -> NAME       IMAGE           STATUS          PORTS
+# -> verdi-db   redis:alpine    Up 2 seconds
+# -> verdi      nginx:alpine    Up 2 seconds    0.0.0.0:8080->80/tcp
 
-Tu dois voir un réseau \`arena-boss_default\` : Compose l'a créé tout seul pour relier les deux services.
-
-6. Interroge l'application sur le port 3000 :
-
-\`\`\`bash
-curl http://localhost:3000
-\`\`\`
-
-7. Prouve que les deux conteneurs se parlent **par leur nom de service**, sans adresse IP :
-
-\`\`\`bash
-docker compose exec database redis-cli ping
-docker compose exec webapp python -c "import socket; print(socket.gethostbyname('database'))"
-\`\`\`
-
-8. Arrête proprement toute l'architecture :
-
-\`\`\`bash
 docker compose down
-\`\`\`
-
-**Ton mot de passe**
-
-Il n'est écrit nulle part : il sort des journaux de la pile. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
-\`\`\`bash
-export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 5 && docker compose logs journal && docker compose down
-\`\`\`
-
-Cette commande monte une pile jetable dans \`/tmp/arena-m7\` : elle ne touche pas ton projet. Le mot de passe s'affiche dans les journaux : envoie-le tel quel au portail.`,
-      hints: [
-        "La pile se décrit dans un fichier unique : une clé `services`, puis deux services, puis ce dont ils ont besoin.",
-        "Le dossier courant se partage dans le conteneur avec un montage de dossier, exactement comme vu au module 6.",
-        "Pour que le second service démarre après le premier, une clé `depends_on` liste le nom du service dont il dépend.",
-      ],
-      solution: `\`\`\`bash
-mkdir -p ~/arena-boss && cd ~/arena-boss
-
-cat > app.py <<'PYEOF'
-from http.server import SimpleHTTPRequestHandler, HTTPServer
-
-
-class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain; charset=utf-8")
-        self.end_headers()
-        message = "BOSS COMPOSE VAINCU !\\n"
-        message += "Felicitations, votre pile multi-conteneurs communique parfaitement.\\n"
-        message += "Je suis servi par boss_webapp, sur le port 3000.\\n"
-        self.wfile.write(message.encode("utf-8"))
-
-
-if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", 3000), Handler)
-    server.serve_forever()
-PYEOF
-
-cat > docker-compose.yml <<'EOF'
-services:
-  webapp:
-    image: python:3.11-alpine
-    container_name: boss_webapp
-    working_dir: /app
-    volumes:
-      - .:/app
-    command: python app.py
-    ports:
-      - "3000:3000"
-    depends_on:
-      - database
-    restart: unless-stopped
-
-  database:
-    image: redis:alpine
-    container_name: boss_redis
-    restart: unless-stopped
-EOF
-
+docker ps -a
+# -> (vide)
 docker compose up -d
-# -> Network arena-boss_default Created
-#    Container boss_redis Started
-#    Container boss_webapp Started
-
 docker compose ps
-# -> boss_redis   redis:alpine         Up ...  6379/tcp
-#    boss_webapp  python:3.11-alpine   Up ...  0.0.0.0:3000->3000/tcp
+# -> les deux sont revenus, à l'identique
 
-docker network ls
-# -> arena-boss_default   bridge   local   (cree automatiquement par Compose)
-
-curl http://localhost:3000
-# -> BOSS COMPOSE VAINCU !
-#    Felicitations, votre pile multi-conteneurs communique parfaitement.
-#    Je suis servi par boss_webapp, sur le port 3000.
-
-docker compose exec database redis-cli ping
-# -> PONG
-docker compose exec webapp python -c "import socket; print(socket.gethostbyname('database'))"
-# -> 172.26.0.2   (le service database resolu par son nom)
+docker compose exec db redis-cli SET cle "la librairie tient debout"
+docker compose down
+docker compose up -d
+docker compose exec db redis-cli GET cle
+# -> "la librairie tient debout"   (le volume a survécu au cycle)
 
 docker compose down
-# -> A envoyer au portail : le mot de passe de la section « Ton mot de passe »,
-#    sorti des journaux d'une pile Compose.
 \`\`\``,
-      teaches: ['docker compose up', 'docker compose down', 'multi-services', 'depends_on', 'réseau de projet'],
+      teaches: ['déploiement reproductible', 'compose down', 'compose up -d', 'ce qui reste : sauvegarde, version, HTTPS'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 5 && docker compose logs journal && docker compose down`,
-      checkpoint: "Tu as réussi quand `curl http://localhost:3000` affiche le message de victoire, quand `docker compose ps` montre les deux services démarrés, quand `docker compose down` a tout arrêté d'une seule commande, et quand `docker compose logs` t'a affiché ton mot de passe.",
+mkdir -p /tmp/atelier-m7c && cd /tmp/atelier-m7c && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-recuperer-une-pile-entiere/raw?token=$ARENA_TOKEN" > compose.yaml
+docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
+      checkpoint: "Tu as compris quand tu sais répondre à la question de l'atelier 1 — « et si la machine meurt ? » — en trois commandes et un fichier.",
     },
   ],
 };
