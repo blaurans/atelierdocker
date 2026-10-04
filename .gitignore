@@ -4,7 +4,15 @@ data/
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Fichiers d'environnement et leurs sauvegardes. Le motif est volontairement
+# large : une sauvegarde de `.env` (`cp .env .env.avant`) contient la clé
+# d'administration en clair, et un `.gitignore` qui ne couvre qu'.env'
+# laisserait passer la sauvegarde au premier `git add -A`.
 .env
-.env.local
+.env.*
+*.env
+*.env.*
+
 *.log
 .DS_Store
