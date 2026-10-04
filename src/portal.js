@@ -1,62 +1,106 @@
 import { bus, ARENA_CHANGED, announce } from './events.js';
 import { __plafonds as plafonds } from './ratelimit.js';
-import { rank, summarize } from './scoring.js';
+import { mastery, cohort } from './mastery.js';
 import { allPlayers, doneOf, counts } from './repo/arena.js';
+import { attemptsFor, hintsUsed } from './repo/progress_repo.js';
 import { quests } from './questpack.js';
 import { config } from './config.js';
 
-/** Construit l'état du portail, strictement dans la forme du cahier des charges. */
+/** Nombre de quêtes par module, tel que défini par le contenu. */
+function moduleTotals(pack) {
+  const out = {};
+  for (const m of pack.modules) out[m.module] = m.quests.length;
+  return out;
+}
+
+/**
+ * L'état du portail enseignant.
+ *
+ * Ce qui a changé par rapport à la V1 : il n'y a plus de classement. Le
+ * portail affichait un podium et un tableau trié par score — c'était l'effet
+ * le plus spectaculaire, et c'était précisément ce qui mesurait l'inégalité
+ * de départ entre élèves plutôt que leur progression.
+ *
+ * À la place, une ligne par élève avec ses trois ratios, et une colonne par
+ * atelier. La question que l'enseignant se pose pendant une séance n'est pas
+ * « qui gagne » mais « qui est bloqué, et où ». Cette vue y répond
+ * directement : un élève avec 8/26 et 3 indices est en difficulté, un élève
+ * avec 8/26 et aucun indice est en avance.
+ *
+ * On ne classe pas les élèves entre eux — ni par nom, ni par ratio. La seule
+ * exception est le tri alphabétique, qui est stable et ne classe personne.
+ */
 export function overview() {
   const pack = quests();
+  const totals = moduleTotals(pack);
+
   const rows = allPlayers().map((p) => {
     const done = doneOf(p.id);
-    const questNumbers = done.map((c) => c.quest_number);
+    const withModule = done.map((c) => ({
+      ...c,
+      module: pack.byId.get(c.quest_id)?.module ?? 0,
+    }));
+
+    const m = mastery({
+      completions: withModule,
+      totalQuests: pack.totalQuests,
+      byModule: totals,
+    });
+
+    // Le nombre d'essais par quête sert à l'enseignant : un élève qui a
+    // validé une quête en sept essais sait qu'il l'a acquise ; un autre qui a
+    // mis un coup et rien plus, moins.
+    let attemptsTotal = 0;
+    for (const q of done) {
+      attemptsTotal += attemptsFor(p.id, q.quest_id).reduce((a, r) => a + r.attempts, 0);
+    }
+
     return {
       team: p.team,
       mode: p.mode,
-      score: p.mode === 'competitive' ? p.score : 0,
-      completed: questNumbers,
+      done: m.done,
+      // Les trois ratios, dans l'ordre où l'enseignant les regarde : où
+      // j'en suis, ce que j'ai su faire seul, ce que j'ai compris.
+      progress_ratio: m.progress_ratio,
+      autonomy_ratio: m.autonomy_ratio,
+      comprehension_ratio: m.comprehension_ratio,
+      hints_used: m.hints_used,
+      level: m.level.key,
+      level_name: m.level.name,
+      modules: m.modules,
+      attempts: attemptsTotal,
+      progress: `${done.length}/${pack.totalQuests}`,
       last_submission: p.last_submit,
       finished: !!p.finished_at,
       registered_at: p.registered_at,
-      // method="progress" garde la forme "3/6" attendue par le portail.
-      progress: `${questNumbers.length}/${pack.totalQuests}`,
-      // champs additionnels, ignorés par un client construit sur le PDF.
+      last_ip: p.last_ip || null,
+      last_submit_iso: p.last_submit_at || null,
       quests: done.map((c) => c.quest_id),
       last_quest: done.at(-1)?.quest_id ?? null,
-      // Poste du dernier appel : indispensable pour l'enseignant, qui doit
-      // savoir quel machine est derrière quel binôme quand un élève ne
-      // répond pas. `null` si l'on n'a aucune information (joueur jamais
-      // revenu, ou base créée avant l'existence de cette colonne).
-      last_ip: p.last_ip || null,
-      // Horodatage complet de la DERNIÈRE soumission, en UTC. Le client le
-      // convertit dans le fuseau du poste qui affiche : le conteneur est en
-      // UTC, la salle ne l'est pas. `last_seen` ne conviendrait pas — c'est
-      // l'heure de n'importe quel appel, pas d'une validation.
-      last_submit_iso: p.last_submit_at || null,
     };
   });
 
-  const competitive = rank(rows.filter((r) => r.mode === 'competitive'));
-  const normal = rows
-    .filter((r) => r.mode === 'normal')
-    .sort((a, b) => b.completed.length - a.completed.length || a.team.localeCompare(b.team));
+  // Tri alphabétique, et rien d'autre. Voir la note sur le classement.
+  rows.sort((a, b) => a.team.localeCompare(b.team, 'fr'));
+
+  const allCompletions = allPlayers().flatMap((p) =>
+    doneOf(p.id).map((c) => ({
+      ...c,
+      module: pack.byId.get(c.quest_id)?.module ?? 0,
+    })));
 
   return {
-    competitive,
-    normal,
+    players: rows,
     meta: {
       total_quests: pack.totalQuests,
-      total_points: pack.totalPoints,
-      bareme: pack.bareme,
       modules: pack.modules.map((m) => ({
         module: m.module, title: m.title, icon: m.icon, tagline: m.tagline,
         count: m.quests.length,
-        points: m.quests.reduce((a, q) => a + q.points, 0),
       })),
+      cohort: cohort(allCompletions, pack.totalQuests),
       server_time: new Date().toISOString(),
       attestation_required: config.requireAttestation,
-      ...summarize(competitive),
+      ...counts(),
     },
   };
 }

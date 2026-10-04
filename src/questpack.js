@@ -29,6 +29,17 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
   const byFlag = new Map();
   const ids = new Set();
 
+  /**
+   * Indices, hors du graphe d'objets.
+   *
+   * Volontairement à côté du pack plutôt que sur chaque entrée : une entrée
+   * de quête est sérialisée telle quelle par `/api/quests`, et il suffit
+   * d'une propriété forgotten pour que les trois indices d'un atelier
+   * repartent dans le payload. Hors du graphe, la fuite n'est pas évitable
+   * par un oubli — elle demanderait un `pack.hintsByQuest.get(...)` explicite.
+   */
+  const hintsByQuest = new Map();
+
   for (const file of files) {
     const url = pathToFileURL(path.join(dir, file)).toString();
     const mod = await import(url);
@@ -84,12 +95,99 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
         '« teaches » doit contenir 1 à 5 mots-clés');
       req(Array.isArray(q.hints) && q.hints.length <= 3, '« hints » : 3 indices maximum');
 
+      // Le Markdown de l'énoncé, pour les garde-fous plus bas : une
+      // justification ou une réponse attendue recopiée depuis le « brief »
+      // est lisible avant d'avoir cherché, donc elle n'apprend rien.
+      const md = q.brief;
+
+      // ── indices payants ──────────────────────────────────────────────
+      // `charge` (optionnel, une fois par quête) décrit ce que coûte un indice.
+      // L'index 0 est le premier indice, et le dernier est toujours offert :
+      // sans sortie gratuite, un élève bloqué n'a plus d'issue et le jeu
+      // devient un mur — l'enseignant a dit qu'il serait disponible, on ne
+      // peut pas le transformer en variable d'ajustement.
+      if (q.charge) {
+        const c = q.charge;
+        req(Array.isArray(c.autonomy), '« charge.autonomy » doit être un tableau');
+        req(Number.isInteger(c.perHint) && c.perHint >= 0 && c.perHint <= 10,
+          '« charge.perHint » doit être un entier entre 0 et 10');
+        const qHints = Array.isArray(q.hints) ? q.hints.length : 0;
+        if (qHints > 0) {
+          req((c.autonomy ?? []).length === qHints,
+            `« charge.autonomy » doit avoir autant d'entrées que « hints » (${qHints})`);
+        }
+        if (qHints >= 2) {
+          // Index 0-based : le dernier indice est le rang qHints-1, pas
+          // qHints-2. L'erreur se paie cher — le refus tombe sur un contenu
+          // parfaitement correct, avec un message qui accuse l'auteur.
+          req((c.autonomy ?? [])[qHints - 1] === 0,
+            'le dernier indice doit être gratuit (autonomy 0) — sinon un élève bloqué n\'a plus de sortie');
+        }
+      }
+
+      // ── compréhension vérifiée ───────────────────────────────────────
+      // `check` : questions à choix fermé. Elles ne bloquent pas la validation
+      // — `required` indique seulement si le coup juste doit être obtenu pour
+      // que la quête compte comme « comprise ». Un élève a le droit de
+      // valider sa quête en échouant au QCM : c'est l'enseignant qui voit
+      // l'écart, pas un zéro au compteur.
+      if (q.check !== undefined) {
+        req(Array.isArray(q.check) && q.check.length <= 3,
+          '« check » : 3 questions de compréhension maximum par quête');
+        for (const [n, c] of (q.check ?? []).entries()) {
+          const at2 = `${at}.check[${n}]`;
+          const need = (cond, msg) => { if (!cond) errors.push(`${at2} : ${msg}`); return cond; };
+          need(typeof c?.id === 'string' && /^[a-z0-9-]+$/.test(c.id), 'id manquant ou invalide');
+          need(c.kind === 'mcq' || c.kind === 'boolean', '« kind » doit être « mcq » ou « boolean »');
+          need(typeof c.prompt === 'string' && c.prompt.trim().length >= 10, '« prompt » manquant');
+          if (c.kind === 'mcq') {
+            need(Array.isArray(c.choices) && c.choices.length >= 2 && c.choices.length <= 4,
+              '« choices » doit contenir 2 à 4 propositions');
+            need(Number.isInteger(c.answer) && c.answer >= 0 && c.answer < (c.choices?.length ?? 0),
+              '« answer » doit être un index valide dans « choices »');
+          } else {
+            need(typeof c.answer === 'boolean', '« answer » doit être un booléen');
+          }
+          need(typeof c.explanation === 'string' && c.explanation.trim().length >= 15,
+            '« explanation » obligatoire — une question sans justification n\'enseigne rien');
+          need(typeof c.required === 'boolean', '« required » doit être un booléen');
+          // La justification ne doit pas être recopiée depuis l'énoncé : sinon
+          // l'élève peut la lire avant d'avoir cherché.
+          if (typeof c.explanation === 'string' && md.includes(c.explanation.trim())) {
+            errors.push(`${at2} : « explanation » ne doit pas figurer mot pour mot dans « brief »`);
+          }
+        }
+      }
+
+      // ── réflexe, pas identité ────────────────────────────────────────
+      // `recall` : l'élève doit restituer une option ou un mot, pas
+      // retranscrire une commande entière. On compare des jetons, pas des
+      // chaînes : c'est la seule façon d'accepter « -p » comme « --publish »
+      // sans écrire une table d'alias par option.
+      if (q.recall !== undefined) {
+        const r = q.recall;
+        const at2 = `${at}.recall`;
+        const need2 = (cond, msg) => { if (!cond) errors.push(`${at2} : ${msg}`); return cond; };
+        need2(typeof r.id === 'string' && /^[a-z0-9-]+$/.test(r.id), 'id manquant ou invalide');
+        need2(typeof r.prompt === 'string' && r.prompt.trim().length >= 10, '« prompt » manquant');
+        need2(Array.isArray(r.accept) && r.accept.length >= 1 && r.accept.length <= 4,
+          '« accept » doit contenir 1 à 4 réponses acceptées');
+        need2(typeof r.hint === 'string' && r.hint.trim().length >= 10,
+          '« hint » obligatoire — l\'élève doit pouvoir corriger sa réponse');
+        // La réponse attendue ne doit pas être dans le champ d'aide : sinon
+        // on peut juste copier.
+        for (const a of (r.accept ?? [])) {
+          if (md.includes(a) && a.length >= 3) {
+            errors.push(`${at2} : « accept » ne doit pas figurer tel quel dans « brief »`);
+          }
+        }
+      }
+
       const flag = String(q.flag ?? '').trim().toUpperCase();
       if (!req(FLAG.test(flag), `flag invalide : « ${q.flag} » (attendu FLAG{MAJUSCULES_ET_TIRETS_BAS})`)) continue;
       if (byFlag.has(flag)) errors.push(`${at} : flag dupliqué avec ${byFlag.get(flag).id}`);
 
       // garde-fou sur le Markdown supporté par le mini-renderer du client
-      const md = q.brief;
       if (/^\s*\|/m.test(md)) errors.push(`${at} : tableau Markdown interdit dans « brief »`);
       if (/<\/?[a-z][a-z0-9]*\s*\/?>/i.test(md)) errors.push(`${at} : HTML interdit dans « brief »`);
       if (/!\[/.test(md)) errors.push(`${at} : image Markdown interdite dans « brief »`);
@@ -148,13 +246,28 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
         flag,
         estMinutes: q.estMinutes,
         brief: q.brief,
-        hints: Array.isArray(q.hints) ? q.hints : [],
+        // Le nombre d'indices, jamais leur contenu : le client doit passer par
+        // `POST /api/quests/:id/hint` pour les obtenir, ce qui enregistre la
+        // consommation. Voir `hintsByQuest` plus bas.
+        hint_count: Array.isArray(q.hints) ? q.hints.length : 0,
+        charge: q.charge ?? null,
+        check: Array.isArray(q.check) ? q.check : [],
+        recall: q.recall ?? null,
         solution: q.solution ?? '',
         teaches: q.teaches ?? [],
         checkpoint: q.checkpoint,
         fetchHint: q.fetchHint,
         flagship: q.points % 100 === 0,
       };
+      // Les indices ne sont PAS sur l'entrée : c'est volontaire, et c'est la
+      // seule façon d'être sûr qu'ils ne sortiront pas par accident.
+      //
+      // En V1 ils étaient une propriété de l'entrée, et l'API les renvoyait
+      // dans `/api/quests`. Les retirer de l'objet ne suffisait pas — il
+      // suffisait d'ajouter un `...q` quelque part pour les réintroduire.
+      // Ici ils vivent dans une table à part, hors du graphe d'objets que
+      // sérialise le handler. Le serveur y lit, le client n'y touche pas.
+      hintsByQuest.set(q.id, Array.isArray(q.hints) ? q.hints : []);
       byFlag.set(flag, entry);
       quests.push(entry);
       moduleEntry.quests.push(entry);
@@ -203,6 +316,8 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
     quests,
     byFlag,
     byId: new Map(quests.map((q) => [q.id, q])),
+    /** Les indices, que le serveur seul peut lire. */
+    hintsByQuest,
     totalQuests: quests.length,
     totalPoints,
     /** Barème figé, tel qu'il est présenté aux joueurs. */

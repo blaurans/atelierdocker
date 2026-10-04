@@ -1,8 +1,14 @@
 # 🐳 Atelier Docker
 
 Serious game d'apprentissage de Docker **pour des étudiants qui n'ont jamais
-tapé une commande Docker**. 7 modules, 26 quêtes, deux modes au choix dès
+tapé une commande Docker**. 7 ateliers, 26 quêtes, deux modes au choix dès
 l'inscription.
+
+Ce qui a changé par rapport à Docker Ops Race : il n'y a plus de points ni de
+classement. À la place, trois mesures qui ne se comparent qu'à soi-même —
+la **progression**, l'**autonomie** (des quêtes réussies sans indice) et la
+**compréhension** (des quêtes validées avec les questions justes). Les indices
+sont payants, et la compréhension est vérifiée.
 
 Successeur de [Docker Ops Race](https://github.com/blaurans/seriousdocker), dont
 la V1 est gelée sur le tag `v1.0.0`. Cette V2 change ce qui compte :
@@ -71,9 +77,8 @@ sur la mission 7 peut lire la 12, consulter une correction antérieure, ou
 attaquer directement le boss final. **Vous validez dans l'ordre que vous voulez.**
 
 Le bandeau « Par où continuer » au programme propose une suite, mais n'oblige
-à rien. Les points de base sont identiques quel que soit l'ordre de validation :
-seul le bonus de podium récompense ceux qui arrivent en premier sur une mission
-donnée, ce qui est précisément l'effet recherché.
+à rien. **L'ordre de validation ne change rien** à la maîtrise : c'est vérifié
+par un test, parce que c'était l'effet du bonus de podium en V1.
 
 Si vous préférez une progression linéaire (dépannage de TP, ou progression
 évaluée au fil de l'eau) :
@@ -89,17 +94,22 @@ un ordre imposé côté serveur punirait l'étudiant qui utilise `curl` comme
 documenté, sans rien apporter. Pour une contrainte réelle, c'est
 `ARENA_ATTESTATION=1` — chaque flag correct attend alors votre validation.
 
-|  | ⚡ Mode Compétitif | 🧘 Mode Normal |
+|  | ⚡ Challenge | 🧘 Sans stress |
 |---|---|---|
-| Chrono | oui, par mission | **aucun** |
-| Score | 25 à 600 pts par mission, cumul **2 800 pts** | **aucun** |
-| Classement | podium en direct, bonus de rapidité | tableau d'émargement |
-| Statut affiché | rang et score | « En cours » / « Achevé ✅ » |
+| Temps affiché | oui, par quête | oui |
+| Indices | **payants** — coûtent de l'autonomie | gratuits |
+| Classement | aucun | aucun |
+| Contenu | identique | identique |
 
-Les deux modes partagent **exactement le même contenu** : mêmes missions,
-même ordre, mêmes indices. Un binôme qui veut la paix choisit le mode normal et
-n'est pas pénalisé. Un binôme qui veut la course choisit le compétitif et peut
-gagner le podium.
+**Les deux modes partagent exactement le même contenu et les mêmes mesures.** La
+seule différence est le prix des indices. C'est tout.
+
+Un élève en Sans stress n'a donc pas « un mode sans points » : il a le même jeu
+que les autres. Ce qui change, c'est qu'il peut demander de l'aide sans que ça
+se voie. C'est le mode par défaut quand le professeur est là.
+
+Et aucun mode ne classe les élèves. La seule liste du portail est triée
+alphabétiquement.
 
 ---
 
@@ -186,30 +196,66 @@ réellement une image (`docker build` avec le mot de passe en `ARG`).
 
 ---
 
-## Le barème
+## La maîtrise
 
-```
-points d'une mission  =  base (25 à 600)
-                       + 60   si 1ᵉʳ à la valider (mode compétitif)
-                       + 30   si 2ᵉ
-                       + 15   si 3ᵉ
-                       + jusqu'à 25 % de la base si validée plus vite que le temps prévu
-                       − 5    par faux flag soumis
-```
+Trois mesures, sur un seul élève. **Aucune ne se compare à celle d'un camarade.**
 
-La base vient du cahier des charges. Les deux derniers termes ont été ajoutés
-parce que la commande du projet est explicite : *« le temps et la qualité
-comptent pour un score »*.
+| Mesure | Ce qu'elle compte |
+|---|---|
+| **progression** | où j'en suis : quêtes validées sur le total |
+| **autonomie** | ce que j'ai su faire seul : validées **sans indice** |
+| **compréhension** | ce que j'ai compris : validées avec les questions justes |
 
-Le score n'est **jamais incrémenté** : il est recalculé depuis l'historique à
-chaque validation (`src/progress.js`). Aucun dérive possible, et un barème
-modifié se répercute proprement.
+Le niveau suit **deux** seuils à la fois — autonomie et avancement. Sans le
+seuil d'avancement, un élève qui réussit sa première quête sans indice (100 %
+d'autonomie) verrait « Maîtrise » s'afficher immédiatement.
 
-Classement : score décroissant, puis nombre de missions, puis heure de fin. Les
-égalités parfaites partagent le même rang.
+| Palier | autonomie | avancement |
+|---|---|---|
+| Debout dans le conteneur | 0 | 0 |
+| Ça tourne | 10 % | 5 % |
+| Autonome | 50 % | 25 % |
+| Geste sûr | 75 % | 50 % |
+| Maîtrise | 90 % | 80 % |
 
-**En mode normal, le score n'est jamais calculé et le temps n'est jamais
-renvoyé par l'API** — pas masqué à l'affichage, absent de la réponse.
+### Pourquoi plus de score
+
+Le score V1 répondait à « qui a été le plus rapide ? ». C'est une question **sur
+la promotion**, pas sur l'élève : le premier d'une classe lente apprend autant
+que le vingtième d'une classe rapide, et l'affichage disait le contraire.
+
+Le portail perd son classement en direct, qui était son effet le plus
+spectaculaire. C'est le prix à payer, et il est assumé. Ce qui le remplace —
+`meta.cohort` — répond à la seule question que l'enseignant se pose pendant une
+séance : **où est-ce que ça coince ?**, listée par atelier et par indices
+consommés.
+
+### Les indices coûtent de l'autonomie
+
+Un indice pris fait perdre la quête pour le compteur d'autonomie, pas pour la
+progression : la quête compte comme **achevée**, mais pas comme **acquise
+seul**. Le coût est affiché avant le clic, jamais après.
+
+**Le dernier indice est toujours gratuit.** Un élève bloqué n'a jamais le droit
+de rester coincé : le professeur est disponible en salle, et on ne transforme pas
+sa disponibilité en variable d'ajustement.
+
+Le contenu des indices ne sort plus par `/api/quests`. La réponse ne porte qu'un
+nombre, et le texte passe par `POST /api/quests/:id/hint`, qui écrit une ligne en
+base. Un élève ouvre l'onglet réseau : il voit trois boutons, pas trois
+solutions. Rejouer la même demande ne coûte rien une seconde fois — c'est
+garanti par un `UNIQUE` en base, pas par le client.
+
+### La compréhension est vérifiée
+
+Chaque quête peut porter jusqu'à trois questions à choix fermé, et une question
+de **réflexe** (« quelle option sert à publier un port ? »). On compare des
+jetons, pas des commandes entières : l'ordre des flags n'est pas le réflexe,
+l'option est.
+
+La réponse ne **bloque pas** la validation. C'est un choix : punir un élève qui a
+cherché le punit de chercher moins. L'écart est visible par l'enseignant —
+chaque question compte ses tentatives.
 
 ---
 
@@ -245,9 +291,9 @@ progression. Une mission validée porte un ✅, la suivante à faire est signal�
 en haut par un encadré « Par où continuer ». Toutes les missions sont
 accessibles : rien n'est verrouillé.
 
-**La mission, à droite** — l'énoncé, les mots-clés travaillés, les indices
-(cliqués un par un, du plus flou au plus direct), le point de contrôle, puis le
-formulaire de validation.
+**La mission, à droite** — l'énoncé, les mots-clés travaillés, les questions de
+compréhension, le réflexe à restituer, les indices (demandés un par un, du plus
+flou au plus direct), le point de contrôle, puis le formulaire de validation.
 
 ### Valider une mission
 
@@ -260,8 +306,8 @@ Le formulaire comporte deux étapes numérotées, dans cet ordre :
    pourquoi. **copiez-la.**
 2. **« Colle-le ici »** — le champ de saisie, puis `Valider la mission`.
 
-Le mot de passe s'affiche alors avec son détail : points de base, bonus de
-podium, bonus de rapidité, malus pour faux flag.
+Le mot de passe s'affiche alors avec ce qu'il a rapporté : si la quête a été
+faite sans indice, si la compréhension est vérifiée, et le niveau atteint.
 
 > **Attention**, la mission 1 demande de lancer un conteneur. Si l'étudiant
 > colle le mot de passe sans avoir lancé la commande, il obtient `401` ou
@@ -290,9 +336,10 @@ podium, bonus de rapidité, malus pour faux flag.
 
 Le portail affiche en direct :
 
-- **Ligue Compétitive** — podium 🥇🥈🥉, score, progression mission par mission
-- **Mode Normal** — liste d'émargement avec statut « En cours » / « Achevé ✅ »,
-  et **le poste (IP) du dernier appel** de chaque binôme
+- **Une liste par élève, triée alphabétiquement** — où il en est, son autonomie,
+  sa compréhension, son niveau, et le détail par atelier
+- **Le poste (IP) du dernier appel**, pour retrouver la machine d'un élève bloqué
+- **Les ateliers les plus coûteux en indices** — la réponse à « où ça coince »
 - **Inscription rapide** — pour les retards, sans passer par le jeu
 
 La colonne IP sert à retrouver un poste : quand un binôme bloque et que vous ne
@@ -326,7 +373,7 @@ curl -X POST https://atelierdocker.laurans.org/api/submit \
 # Remettre un joueur à zéro (oubli de token, binôme réinscrit)
 curl -X POST https://atelierdocker.laurans.org/api/admin/reset/CyberPhoenix
 
-# Basculer un joueur du mode normal au compétitif
+# Basculer un joueur de mode — ATTENTION : efface son parcours
 curl -X POST https://atelierdocker.laurans.org/api/admin/mode/Alice_Bob \
   -H "Content-Type: application/json" -d '{"mode":"competitive"}'
 
@@ -355,8 +402,9 @@ Si vous voulez que la validation soit confirmée par un humain :
 ARENA_ATTESTATION=1
 ```
 
-Alors un flag correct crée une soumission **en attente** : le score n'est pas
-attribué, le joueur n'avance pas. Vous apposez votre validation depuis :
+Alors un mot de passe correct crée une soumission **en attente** : la quête
+n'est pas acquise, le joueur n'avance pas, et le message le lui dit
+explicitement. Vous apposez votre validation depuis :
 
 ```bash
 curl https://atelierdocker.laurans.org/api/admin/pending
@@ -371,15 +419,17 @@ autonome, comme dans le cahier des charges.
 
 ## Sécurité — à lire avant d'ouvrir le portail
 
-Le portail est conçu pour **une salle de TP**, pas pour Internet.
+Le portail est conçu pour **une salle de TP**. Il est aujourd'hui accessible
+sur Internet, ce qui change trois choses par rapport à un portail de classe.
 
-- **Pas de mot de passe.** L'inscription renvoie un `token` stocké en
+- **Pas de mot de passe.** L'inscription renvoie un `token` stocké dans
   `localStorage`. Si un secret est fourni, le pseudo est protégé ; sinon,
-  quiconque se connecte avec le même pseudo reprend le score. **Activez
-  `ARENA_ADMIN_KEY` et exigez un secret en salle.**
-- **L'administration est ouverte par défaut** (`ADMIN_KEY` vide). Tout
-  utilisateur atteignable peut appeler `/api/admin/*`. À fermer en fin de TP, ou
-  dès que le portail sort du réseau de la classe.
+  quiconque se connecte avec le même pseudo reprend la session. **Positionnez
+  `ATELIER_ADMIN_KEY` et exigez un secret en salle.**
+- **`ATELIER_ADMIN_KEY` est obligatoire.** Le `compose.yaml` refuse de démarrer
+  sans elle, et `/api/admin/delete/:team` supprime une inscription. Sans clé,
+  cette route est une suppression de données accessible à quiconque trouve
+  l'URL.
 - **Plafonds de débit en place**, par IP et par route, sur une fenêtre d'une
   minute : 12 inscriptions, 40 soumissions, 120 lectures du programme,
   300 flux live. Un `X-Forwarded-For` forgé n'aide pas : l'en-tête n'est lu que
@@ -390,6 +440,12 @@ Le portail est conçu pour **une salle de TP**, pas pour Internet.
   la même IP, et le navigateur reconnecte tout seul un flux coupé toutes les
   ~3 s. Le client espace ses tentatives lui-même (recul de 1 à 30 s), donc une
   coupure réseau ne transforme pas le poste en boucle de tentatives.
+
+  ⚠️ **Si toutes les VM des élèves sont derrière le NAT de l'établissement**, la
+  promotion entière partage un seul compteur. Le plafond de 40/min sur
+  `/api/submit` peut renvoyer des `429` à tout le monde en même temps. Trois
+  solutions : passer les quotas par jeton plutôt que par IP, monter les valeurs,
+  ou `ARENA_RATE_LIMIT=off` puisque le professeur est là. Voir CONTRACTS § 2.6.
 - **Le portail ne se connecte jamais au Docker des étudiants.** Il ne lit que
   ce que les étudiants lui envoient : un pseudo et un flag. Aucune commande
   n'est exécutée par le serveur.
@@ -399,7 +455,7 @@ Le portail est conçu pour **une salle de TP**, pas pour Internet.
 Contre-mesures normales en cas d'exposition :
 
 ```bash
-echo "ARENA_ADMIN_KEY=$(openssl rand -hex 16)" >> .env
+echo "ATELIER_ADMIN_KEY=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)" >> .env
 docker compose up -d
 ```
 
@@ -410,7 +466,7 @@ docker compose up -d
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 90 tests
+npm test                  # 124 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -427,14 +483,14 @@ npm run check-fetchhints # REJOUE les 26 commandes pour de vrai (demande Docker)
 ### Ajouter une mission
 
 1. Éditez le fichier du module (`content/quests/m<N>.js`).
-2. Gardez l'invariant du barème : une mission dont les points sont un multiple
-   de 100 est une « mission phare » et doit être **la dernière** du module. La
-   somme des points du module doit faire un multiple de 100.
+2. Respectez `docs/CONTRACTS.md` § 1 : `charge.autonomy` doit avoir autant
+   d'entrées que `hints` et finir à 0, chaque `check` a besoin d'une
+   `explanation`, chaque `recall` d'un `hint`.
 3. `node scripts/check-content.js && npm test`
 
 Le serveur **refuse de démarrer** si le contenu est incohérent : flag dupliqué,
-`order` en doublon, somme de points non multiple de 100, HTML glissé dans un
-énoncé. L'erreur dit précisément quoi corriger.
+`order` en doublon, dernier indice payant, HTML glissé dans un énoncé, réponse
+recopiée de l'énoncé. L'erreur dit précisément quoi corriger.
 
 ### Structure
 
@@ -443,12 +499,15 @@ content/quests/m*.js    missions (données, aucune logique)
 src/
   server.js             application Express
   questpack.js          chargement + validation du contenu
-  scoring.js            barème, bonus, classement
-  progress.js           validation d'une mission, recalcul du score
+  mastery.js            les trois ratios et les paliers
+  progress.js           validation d'une mission, écriture des faits
   portal.js             état du portail + flux SSE
-  repo/arena.js         accès SQLite
+  routes/api.js         parcours, soumission, administration
+  routes/atelier.js     indice, compréhension, réflexe
+  repo/arena.js         accès SQLite (joueurs, validations)
+  repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   90 tests : barème, API, rendu, contrat, invariants,
+test/                   124 tests : maîtrise, API, rendu, contrat, invariants,
                         qualité du contenu, plafonds de débit
 docs/CONTRACTS.md       contrat de données et d'API
 ```
@@ -475,15 +534,17 @@ touche jamais le code.
 
 | Point | PDF d'origine | Ici | Pourquoi |
 |---|---|---|---|
-| Périmètre | 6 missions | 26 en 7 modules | demande « parcours complet » |
-| Base | Python en mémoire, perdue au redémarrage | SQLite sur volume | les scores survivent |
+| Périmètre | 6 missions | 26 en 7 ateliers | demande « parcours complet » |
+| Base | Python en mémoire, perdue au redémarrage | SQLite sur volume | la maîtrise survivent |
 | Portail | rechargement toutes les 4 s | SSE, mise à jour instantanée | réactivité |
-| Compteur d'erreurs | inexistant | −5 pts par faux flag | « la qualité compte » |
-| Bonus de rapidité | 60/30/15 seuls | + jusqu'à 25 % sur le temps | « le temps compte » |
-| Inscription | pseudo + mode | pseudo + mode + secret + token | un binôme ne peut pas voler le score d'un autre |
+| Notation | points, podium, bonus de rapidité | **maîtrise** : progression, autonomie, compréhension | le score mesurait la promotion, pas l'élève |
+| Classement | podium par mission | **aucun** | on ne classe pas des élèves |
+| Aides | indices gratuits | **indices payants**, le dernier gratuit | l'autonomie devient mesurable |
+| Compréhension | non vérifiée | QCM bloquant au premier coup + réflexe | on vérifie ce qui est compris |
+| Inscription | pseudo + mode | pseudo + mode + secret + token | personne ne peut voler la session d'un autre |
 | API | `/api/register`, `/api/submit`, `/api/overview` | identiques **+** extensions | compatibilité conservée |
 | Anti-triche | aucune | mode attestation optionnel | le PDF permet de valider sans rien faire |
-| Préalables | Python + pip au runtime | conteneur | déplacement en une commande |
+| Mise en ligne | locale | **https** derrière Caddy, multi-arche | plus de `http://…:8000` à retenir |
 
 Les trois routes du PDF répondent toujours dans la même forme. Un client
 construit sur le cahier des charges continue de fonctionner.

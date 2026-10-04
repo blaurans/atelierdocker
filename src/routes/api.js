@@ -1,12 +1,12 @@
 import express from 'express';
 import { db } from '../db.js';
-import { config, isMode } from '../config.js';
+import { config, isMode, MODE_LABELS } from '../config.js';
 import { HttpError, requirePlayer, requireAdmin, identify } from '../auth.js';
 import { __plafonds as plafonds, clientIp } from '../ratelimit.js';
 import { quests, reloadQuestpack } from '../questpack.js';
-import { rank, positionOf } from '../scoring.js';
+import { mastery, cohort } from '../mastery.js';
 import { overview, liveHandler, announce } from '../portal.js';
-import { submitQuest, attest, recomputeScore, announceAfter } from '../progress.js';
+import { submitQuest, attest, announceAfter } from '../progress.js';
 import { secretFor } from '../secret.js';
 import {
   createPlayer, findByTeam, setMode, setSecret, deletePlayer, resetPlayer,
@@ -21,9 +21,62 @@ const TEAM_RE = /^[\p{L}\p{N} ._-]{2,32}$/u;
 // réseau de la classe, un script de studied ne doit pas pouvoir noyer la base.
 api.use(plafonds.api);
 
-export const modeLabel = (m) => (m === 'competitive' ? 'Compétitif' : 'Normal');
+export const modeLabel = (m) => MODE_LABELS[m] ?? m;
 
 const normalizeFlag = (raw) => String(raw ?? '').trim().toUpperCase();
+
+/**
+ * Nombre de quêtes par module, pour le détail de maîtrise.
+ *
+ * Calculé à partir du contenu plutôt que compté en base : un atelier dont on
+ * aurait retiré une quête doit disparaître du dénominateur tout de suite.
+ */
+const moduleTotals = (pack) => {
+  const out = {};
+  for (const m of pack.modules) out[m.module] = m.quests.length;
+  return out;
+};
+
+/**
+ * Nombre de tentatives par quête, pour l'historique.
+ *
+ * Un décompte, pas le détail des réponses : l'enseignant voit « il a cherché
+ * 4 fois » sans que l'élève relise devant tout le monde ce qu'il avait
+ * répondu de faux.
+ */
+const masteryPerQuest = (playerId) => {
+  const rows = db.prepare(
+    `SELECT quest_id,
+            SUM(CASE WHEN kind = 'check'  THEN attempts ELSE 0 END) AS check_attempts,
+            SUM(CASE WHEN kind = 'recall' THEN attempts ELSE 0 END) AS recall_attempts
+       FROM attempts WHERE player_id = ? GROUP BY quest_id`
+  ).all(playerId);
+
+  return new Map(rows.map((r) => [r.quest_id, {
+    check_attempts: r.check_attempts ?? 0,
+    recall_attempts: r.recall_attempts ?? 0,
+  }]));
+};
+
+/**
+ * Maîtrise d'un joueur, pour `/api/me`.
+ *
+ * Le module vient du contenu (`pack.byId`), pas d'une colonne en base : le
+ * numéro de module est une propriété de la quête, et le recopier dans
+ * `completions` créerait une seconde source de vérité à désynchroniser dès
+ * qu'un contenu est réorganisé.
+ */
+const masteryOf = (playerId, pack) => {
+  const rows = db.prepare(
+    `SELECT * FROM completions WHERE player_id = ? AND status = 'done'`
+  ).all(playerId);
+
+  return mastery({
+    completions: rows.map((c) => ({ ...c, module: pack.byId.get(c.quest_id)?.module ?? 0 })),
+    totalQuests: pack.totalQuests,
+    byModule: moduleTotals(pack),
+  });
+};
 
 /**
  * L'origine sous laquelle l'élève a réellement joint le portail.
@@ -189,7 +242,13 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
           // Le flag n'est PAS transmis : il se récupère par /api/secret et
           // n'existe pas dans le contenu. Le champ reste dans la base pour
           // l'anti-doublon, mais il ne sort jamais d'ici.
-          hints: q.hints,
+          //
+          // Les indices ne sont pas transmis non plus, et c'est une règle
+          // (CONTRACTS § 1.5) : la réponse ne porte que le nombre, le texte
+          // sort par POST /api/quests/:id/hint, qui enregistre la consommation.
+          // Si `hints` réapparaît ici, la facturation cesse d'exister — l'élève
+          // lit les trois dans l'onglet réseau. `hints_count` plus bas.
+          hint_count: q.hint_count,
           // La commande de récupération, prête à coller. Voir `origin()` plus
           // haut pour pourquoi c'est l'origine complète plutôt que le seul
           // hôte. Le préfixe est remplacé en entier, « https://SERVER_IP »
@@ -228,14 +287,15 @@ api.get('/me', requirePlayer, (req, res, next) => {
     const pack = quests();
     const done = doneOf(p.id);
     const doneIds = new Set(done.map((c) => c.quest_id));
-    const competitive = p.mode === 'competitive';
+
+    const m = masteryOf(p.id, pack);
+    const perQuest = masteryPerQuest(p.id);
 
     res.json({
       team: p.team,
       mode: p.mode,
       mode_label: modeLabel(p.mode),
-      score: competitive ? p.score : null,
-      rank: competitive ? positionOf(rank(overview().competitive), p.team) : null,
+      mastery: m,
       total_quests: pack.totalQuests,
       progress: `${doneIds.size}/${pack.totalQuests}`,
       completed_percent: Math.round((doneIds.size / pack.totalQuests) * 100),
@@ -243,20 +303,31 @@ api.get('/me', requirePlayer, (req, res, next) => {
       registered_at: p.registered_at,
       last_submission: p.last_submit,
       next_quest: pack.quests.find((q) => !doneIds.has(q.id))?.id ?? null,
-      history: done.map((c) => ({
-        quest_id: c.quest_id,
-        quest_number: c.quest_number,
-        points: c.points,
-        speed_bonus: c.speed_bonus,
-        pace_bonus: c.pace_bonus,
-        penalty: c.penalty,
-        wrong_flags: c.wrong_flags,
-        time_ms: c.time_ms,
-        at: c.completed_at,
-        // Le mode normal ne renvoie jamais de temps : il ne doit pas exister
-        // dans la réponse, pas seulement être masqué à l'affichage.
-        time_display: competitive ? formatMs(c.time_ms) : null,
-      })),
+      history: done.map((c) => {
+        const q = pack.byId.get(c.quest_id);
+        const flags = perQuest.get(c.quest_id) ?? { check_attempts: 0, recall_attempts: 0 };
+        return {
+          quest_id: c.quest_id,
+          quest_number: c.quest_number,
+          title: q?.title ?? null,
+          // Le détail par quête : c'est ce qui permet à l'élève de relire son
+          // parcours et de voir *quelles* quêtes lui ont coûté un indice,
+          // plutôt qu'un total qu'il ne pourrait pas situer.
+          hints_used: c.hints_used ?? 0,
+          autonomous: (c.hints_used ?? 0) === 0,
+          check_ok: c.check_ok === 1,
+          recall_ok: c.recall_ok === 1,
+          // `pending` = flag correct mais attente de validation par
+          // l'enseignant. Distingué de `done` parce que la quête n'est pas
+          // encore acquise : la compter dans la maîtrise serait faux.
+          status: c.status,
+          wrong_flags: c.wrong_flags,
+          time_ms: c.time_ms,
+          at: c.completed_at,
+          check_attempts: flags.check_attempts,
+          recall_attempts: flags.recall_attempts,
+        };
+      }),
     });
   } catch (e) { next(e); }
 });
@@ -284,7 +355,6 @@ api.post('/submit', plafonds.submit, (req, res, next) => {
         + 'la mission — il n\'est écrit nulle part dans l\'énoncé.');
     }
 
-    const competitive = player.mode === 'competitive';
     const previous = doneOf(player.id);
 
     if (previous.some((c) => c.quest_id === quest.id)) {
@@ -293,10 +363,7 @@ api.post('/submit', plafonds.submit, (req, res, next) => {
         mode: player.mode,
         quest_validated: quest.number,
         quest_title: quest.title,
-        points_earned: 0,
-        score_total: competitive ? player.score : 0,
         completed_count: `${previous.length}/${pack.totalQuests}`,
-        rank: competitive ? positionOf(rank(overview().competitive), player.team) : null,
         finished: !!player.finished_at,
         message: `Quête ${quest.number} déjà validée précédemment.`,
       });
@@ -308,8 +375,7 @@ api.post('/submit', plafonds.submit, (req, res, next) => {
       requireAttestation: config.requireAttestation,
     });
 
-    const fresh = announceAfter(player.id);
-    const ranked = rank(overview().competitive);
+    announceAfter(player.id);
 
     if (outcome.status === 'pending') {
       return res.json({
@@ -317,38 +383,35 @@ api.post('/submit', plafonds.submit, (req, res, next) => {
         mode: player.mode,
         quest_validated: quest.number,
         quest_title: quest.title,
-        points_earned: 0,
         completed_count: `${previous.length}/${pack.totalQuests}`,
         finished: false,
-        message: "Flag correct ! En attente de la validation de l'enseignant.",
+        // Message clé : l'élève doit savoir que son mot de passe est bon et
+        // que c'est l'enseignant qui bloque. Sans cette phrase, il croit avoir
+        // échoué et il recommence la quête.
+        message: "Mot de passe correct. En attente de la validation de l'enseignant.",
       });
     }
 
     const doneIds = new Set([...previous.map((c) => c.quest_id), quest.id]);
     const next = pack.quests.find((q) => !doneIds.has(q.id)) ?? null;
-    const step = outcome.result?.breakdown?.at(-1) ?? null;
+    const m = masteryOf(player.id, pack);
 
     res.json({
       status: 'success',
       mode: player.mode,
       quest_validated: quest.number,
       quest_title: quest.title,
-      points_earned: competitive ? step?.gained ?? quest.points : 0,
-      breakdown: competitive && step
-        ? {
-          base: quest.points,
-          speed_bonus: step.speed_bonus ?? 0,
-          pace_bonus: step.pace_bonus ?? 0,
-          penalty: step.penalty ?? 0,
-        }
-        : null,
-      score_total: competitive ? fresh.score : 0,
+      mastery: m,
+      // Ce que cette quête a rapporté à la maîtrise, formulé qualitativement.
+      // Un élève se moque d'un « 25 points » quand les points ne veulent rien
+      // dire ; il ne se moque pas de « cette quête ne compte pas pour ton
+      // autonomie ».
+      quest_result: outcome.result,
       completed_count: `${doneIds.size}/${pack.totalQuests}`,
-      rank: competitive ? positionOf(ranked, player.team) : null,
       finished: doneIds.size === pack.totalQuests,
       unlocked_next: next?.id ?? null,
-      time_display: competitive ? formatMs(outcome.timeMs) : null,
-      message: buildMessage({ player, quest, outcome, competitive, doneIds, pack }),
+      time_display: formatMs(outcome.timeMs),
+      message: buildMessage({ player, quest, outcome, doneIds, pack }),
     });
   } catch (e) { next(e); }
 });
@@ -360,17 +423,29 @@ function formatMs(ms) {
   return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')}`;
 }
 
-function buildMessage({ player, quest, outcome, competitive, doneIds, pack }) {
-  if (!competitive) {
-    return doneIds.size === pack.totalQuests
-      ? "Parcours terminé : toutes les étapes sont validées. Bien joué !"
-      : `Étape validée ! ${doneIds.size}/${pack.totalQuests} étapes accomplies.`;
+/**
+ * Le mot de retour après une validation.
+ *
+ * Les deux modes ont le même texte, volontairement. La différence de pression
+ * ne se joue pas dans le congratulation — elle se joue dans ce que la quête
+ * leur a coûté en autonomie, et dans le temps affiché juste au-dessus. Un
+ * élève en mode Sans stress qui lit « bravo, 40 points » comprend qu'il joue
+ * encore le jeu de la V1.
+ */
+function buildMessage({ player, quest, outcome, doneIds, pack }) {
+  const r = outcome.result ?? {};
+  const bits = [`Quête ${quest.number} validée`];
+
+  if (r.autonomous) {
+    bits.push('sans indice — elle compte pour ton autonomie');
+  } else if (r.hints_used) {
+    bits.push(`avec ${r.hints_used} indice${r.hints_used > 1 ? 's' : ''}`);
   }
-  const gained = outcome.result?.breakdown?.at(-1)?.gained ?? quest.points;
-  const medal = outcome.rank === 1 ? ' — 🥇 premier sur cette quête'
-    : outcome.rank === 2 ? ' — 🥈 deuxième'
-      : outcome.rank === 3 ? ' — 🥉 troisième' : '';
-  return `Quête ${quest.number} validée ! +${gained} pts${medal}.`;
+
+  if (doneIds.size === pack.totalQuests) {
+    return `${bits.join(', ')}. Parcours terminé.`;
+  }
+  return `${bits.join(', ')}. ${doneIds.size}/${pack.totalQuests} quêtes accomplies.`;
 }
 
 /* ---------------------------------------------------------------- overview */
@@ -381,13 +456,14 @@ api.get('/overview', (_req, res, next) => {
 
 api.get('/live', plafonds.live, liveHandler);
 
-api.get('/leaderboard/:mode', (req, res, next) => {
-  try {
-    const mode = String(req.params.mode).toLowerCase();
-    if (!isMode(mode)) throw new HttpError(400, 'Mode inconnu : competitive ou normal.');
-    res.json({ mode, leaderboard: overview()[mode] });
-  } catch (e) { next(e); }
-});
+/**
+ * Classement — route retirée en V2.
+ *
+ * Elle est supprimée, pas désactivée : il n'y a plus de classement à renvoyer,
+ * et une route qui répond `{"mode":"competitive","leaderboard":undefined}`
+ * ferait croire à un élève qui l'a encore en favori qu'il est premier. Un 404
+ * est plus honnête qu'un silence.
+ */
 
 /* -------------------------------------------------------------------- stats */
 
@@ -473,8 +549,12 @@ api.post('/admin/mode/:team', requireAdmin, (req, res, next) => {
     if (!isMode(mode)) throw new HttpError(400, 'Mode invalide.');
     const p = teamOr404(req.params.team);
     setMode(p.id, mode);
-    resetPlayer(p.id); // le score dépend du mode : on repart proprement
-    recomputeScore(p.id);
+    // Changer de mode en cours d'année ne doit pas garder les validations
+    // de l'autre mode : elles ont été obtenues sous des règles de notation
+    // différentes. `resetPlayer` efface le parcours, l'élève recommence —
+    // c'est ce que l'enseignant veut en changeant un élève de mode en plein
+    // atelier.
+    resetPlayer(p.id);
     announce(`mode:${p.team}`);
     res.json({ status: 'ok', team: p.team, mode });
   } catch (e) { next(e); }

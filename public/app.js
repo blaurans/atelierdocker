@@ -698,27 +698,75 @@ function openQuest(id, rerenderMap = true) {
   panel.appendChild(brief);
 
   // ── indice / point de contrôle
+  //
+  // Les indices ne sont plus dans le payload : le serveur ne livre que
+  // `hint_count`, et le texte sort par POST /api/quests/:id/hint. C'est ce qui
+  // rend la facturation possible — un indice reçu d'avance ne peut pas être
+  // facturé, puisque personne ne l'a demandé.
+  //
+  // Le coût est affiché avant le clic : un élève ne doit pas découvrir qu'il
+  // a payé en regardant son score après coup.
   const aid = el('div', 'aid');
-  const hintBtn = el('button', 'btn btn-ghost btn-sm', '💡 Afficher un indice');
-  hintBtn.type = 'button';
+  const total = q.hint_count ?? 0;
   const hintBox = el('div', 'hint-box');
   let hintIdx = 0;
-  hintBtn.addEventListener('click', () => {
-    if (hintIdx >= q.hints.length) {
-      hintBox.textContent = '';
-      hintBox.appendChild(el('p', 'dim', 'Plus aucun indice. Relis la mission et réessaie.'));
+
+  if (total === 0) {
+    aid.appendChild(el('p', 'dim', 'Pas d\'indice pour cette mission.'));
+  } else {
+    const hintBtn = el('button', 'btn btn-ghost btn-sm', '💡 Demander un indice');
+    hintBtn.type = 'button';
+    hintBtn.disabled = true;          // actif dès la première réponse du serveur
+
+    hintBtn.addEventListener('click', async () => {
       hintBtn.disabled = true;
-      return;
-    }
-    const h = q.hints[hintIdx];
-    const row = el('div', 'hint');
-    row.appendChild(el('span', 'hint-n', `Indice ${hintIdx + 1}`));
-    row.appendChild(renderMarkdown(h));
-    hintBox.appendChild(row);
-    hintIdx += 1;
-    if (hintIdx >= q.hints.length) hintBtn.disabled = true;
-  });
-  aid.appendChild(hintBtn);
+      const lbl = el('span', 'dim', ' …');
+      hintBtn.textContent = '💡 Chargement';
+      hintBtn.appendChild(lbl);
+
+      try {
+        const r = await api(`/api/quests/${q.id}/hint`, { method: 'POST' });
+
+        if (r.status === 'exhausted') {
+          hintBox.appendChild(el('p', 'dim',
+            'Plus aucun indice. Relis la mission, ou demande au professeur.'));
+          return;
+        }
+
+        const row = el('div', 'hint');
+        row.appendChild(el('span', 'hint-n', `Indice ${r.index + 1} / ${total}`));
+        row.appendChild(renderMarkdown(r.hint));
+        hintBox.appendChild(row);
+
+        hintIdx = r.index + 1;
+        if (r.autonomy_lost > 0) {
+          hintBox.appendChild(el('p', 'hint-cost',
+            `Cet indice ne compte pas pour ton autonomie.`
+            + (r.free_next ? ' Le prochain sera gratuit.' : '')));
+        } else if (r.already_taken) {
+          hintBox.appendChild(el('p', 'dim', 'Tu avais déjà pris cet indice.'));
+        } else {
+          hintBox.appendChild(el('p', 'hint-free', 'Dernier indice : celui-ci est gratuit.'));
+        }
+
+        if (r.remaining > 0) {
+          hintBtn.textContent = '💡 Autre indice';
+          hintBtn.appendChild(el('span', 'dim',
+            ` (${r.remaining} restant${r.remaining > 1 ? 's' : ''})`));
+          hintBtn.disabled = false;
+        } else {
+          hintBtn.textContent = 'Plus d\'indice';
+          hintBtn.disabled = true;
+        }
+      } catch (err) {
+        hintBox.appendChild(el('p', 'err', err.message ?? 'Impossible de charger un indice.'));
+        hintBtn.disabled = false;
+      }
+    });
+
+    aid.appendChild(hintBtn);
+  }
+
   aid.appendChild(hintBox);
   panel.appendChild(aid);
 

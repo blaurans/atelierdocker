@@ -13,45 +13,49 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const doc = fs.readFileSync(path.resolve('docs/CONTRACTS.md'), 'utf8');
-const api = fs.readFileSync(path.resolve('src/routes/api.js'), 'utf8');
-const scoring = fs.readFileSync(path.resolve('src/scoring.js'), 'utf8');
-const progress = fs.readFileSync(path.resolve('src/progress.js'), 'utf8');
-const portal = fs.readFileSync(path.resolve('src/portal.js'), 'utf8');
-const ratelimit = fs.readFileSync(path.resolve('src/ratelimit.js'), 'utf8');
-const server = fs.readFileSync(path.resolve('src/server.js'), 'utf8');
-const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+const read = (f) => fs.readFileSync(path.resolve(f), 'utf8');
 
-/**
- * Les routes annoncées dans le document : celles du tableau §2.4 **et** les
- * trois routes historiques du cahier des charges (§2.1, §2.2, §2.3), qui sont
- * décrites dans leur propre section plutôt que dans le tableau.
- */
-const routesAnnoncées = [
-  ...[...doc.matchAll(/^\|\s*`?(GET|POST) (\/api\/[a-z/:]+)`?\s*\|/gim)]
-    .map((m) => `${m[1].toUpperCase()} ${m[2]}`),
-  'POST /api/register',
-  'POST /api/submit',
-  'GET /api/overview',
-  'GET /api/secret/:questId',
-  'GET /api/secret/:questId/raw',
-];
+const doc = read('docs/CONTRACTS.md');
+const api = read('src/routes/api.js');
+const atelier = read('src/routes/atelier.js');
+const questpack = read('src/questpack.js');
+const progress = read('src/progress.js');
+const portal = read('src/portal.js');
+const ratelimit = read('src/ratelimit.js');
+const pkg = JSON.parse(read('package.json'));
+
+/** La section du contrat dont l'identifiant commence par `prefixe`. */
+const section = (prefixe) => {
+  const i = doc.indexOf(prefixe);
+  assert.ok(i >= 0, `le contrat ne contient pas la section « ${prefixe} »`);
+  const suite = doc.slice(i + prefixe.length);
+  const fin = suite.search(/^#{2,3} /m);
+  return fin < 0 ? suite : suite.slice(0, fin);
+};
+
+/** Les routes annoncées dans le tableau du contrat. */
+const routesAnnoncées = [...doc.matchAll(/^\|\s*`?(GET|POST) (\/api\/[a-z/:]+)`?\s*\|/gim)]
+  .map((m) => `${m[1].toUpperCase()} ${m[2]}`);
 
 test('le contrat décrit des routes', () => {
-  assert.ok(routesAnnoncées.length >= 10, `seulement ${routesAnnoncées.length} routes listées`);
+  assert.ok(routesAnnoncées.length >= 8, `seulement ${routesAnnoncées.length} routes listées`);
 });
 
 test('toutes les routes annoncées existent dans le code', () => {
-  // Les routes sont montées sur un router Express : le code écrit '/quests'
+  // Les routes sont montées sur des routers Express : le code écrit '/quests'
   // là où la documentation écrit '/api/quests'. On normalise les deux côtés.
-  const declarees = [...api.matchAll(/api\.(get|post|use)\(\s*'([^']*)'/g)]
-    .map((m) => `${m[1].toUpperCase()} /api${m[2]}`.replace(/\/api$/, '/api'));
+  const sources = { [api]: 'api', [atelier]: 'atelier' };
+  const declarees = [];
+  for (const [src, router] of Object.entries(sources)) {
+    for (const m of src.matchAll(/\b(api|atelier)\.(get|post)\(\s*'([^']*)'/g)) {
+      declarees.push(`${m[2].toUpperCase()} /api${m[3]}`);
+    }
+  }
 
+  const normalise = (s) => s.replace(/:\w+/g, ':');
   const manquantes = [];
   for (const route of routesAnnoncées) {
     const [method, chemin] = route.split(' ');
-    // `:param` et `:paramId` sont équivalents pour la comparaison.
-    const normalise = (s) => s.replace(/:\w+/g, ':');
     const existe = declarees.some((d) => {
       const [dm, dc] = d.split(' ');
       return dm === method && normalise(dc) === normalise(chemin);
@@ -63,12 +67,90 @@ test('toutes les routes annoncées existent dans le code', () => {
 
 test('toutes les routes du code sont documentées', () => {
   const declarees = [...api.matchAll(/api\.(get|post)\(\s*'([^']*)'/g)]
-    .map((m) => `${m[1].toUpperCase()} /api${m[2]}`);
+    .map((m) => `${m[1].toUpperCase()} /api${m[2]}`)
+    .concat([...atelier.matchAll(/atelier\.(get|post)\(\s*'([^']*)'/g)]
+      .map((m) => `${m[1].toUpperCase()} /api${m[2]}`));
+
   const undocumented = declarees.filter((r) => !routesAnnoncées.includes(r));
   assert.deepEqual(undocumented, [], `routes du code absentes du contrat : ${undocumented.join(', ')}`);
 });
 
-test('le contrat annonce des limites de débit, le code les applique', () => {
+/* --------------------------------------------------------- disparition du score */
+
+test('le contrat annonce la disparition des points', () => {
+  const bloc = section('### 1.4');
+  assert.match(bloc, /vestige/i);
+  assert.match(bloc, /plus rien ne le lit/i);
+});
+
+test('la réponse de submit ne contient plus aucun champ de score', () => {
+  const bloc = section('### 2.2');
+  for (const champ of ['points_earned', 'score_total', 'breakdown', 'rank']) {
+    assert.ok(!new RegExp(`"${champ}"`).test(bloc),
+      `§ 2.2 ne doit plus documenter « ${champ} »`);
+  }
+  assert.ok(bloc.includes('"mastery"'), '§ 2.2 doit documenter la maîtrise');
+});
+
+test('aucun point n\'est produit par les routes', () => {
+  // Le test le plus important du fichier : il empêche qu'un « points_earned »
+  // survive quelque part dans le code, pour le compatibility d'un client V1.
+  for (const src of [api, portal]) {
+    assert.doesNotMatch(src, /points_earned|score_total|speed_bonus|pace_bonus/,
+      'aucun champ de score ne doit être produit');
+  }
+  assert.doesNotMatch(read('src/portal.js'), /\brank\(/, 'le portail ne classe plus');
+});
+
+test('le portail renvoie une seule liste, triée alphabétiquement', () => {
+  assert.match(portal, /players:/, 'la liste unique s\'appelle players');
+  assert.match(portal, /localeCompare\(b\.team, 'fr'\)/, 'le seul tri est alphabétique');
+  assert.ok(!portal.includes('competitive:'), 'plus de liste compétitive séparée');
+  assert.ok(!portal.includes('normal:'), 'plus de liste normale séparée');
+});
+
+/* -------------------------------------------------------------- routes de maîtrise */
+
+test('les indices ne sortent jamais par le payload du programme', () => {
+  // La règle qui rend les indices payants : `/api/quests` ne doit transporter
+  // qu'un nombre. Si `hints` réapparaît dans la réponse, la facturation
+  // n'existe plus — l'élève lit tout dans l'onglet réseau.
+  const bloc = section('### 2.5');
+  // La formulation evolves ( emphase Markdown, retour à la ligne ) ; on vérifie
+  // l'idée, pas la typographie.
+  assert.match(bloc, /ne transmet[\s\S]{0,30}`?hints`?/);
+  assert.match(bloc, /hint_count/);
+
+  const construction = api.slice(api.indexOf('modules: pack.modules.map'));
+  assert.doesNotMatch(construction, /^\s*hints:/m,
+    'la construction de la réponse ne doit pas exposer `hints`');
+  assert.match(construction, /hint_count: q\.hint_count/);
+});
+
+test('les indices sont gardés hors du graphe d\'objets des quêtes', () => {
+  // S'ils étaient une propriété de l'entrée, un `...q` forgot les réintroduirait.
+  assert.match(questpack, /hintsByQuest/);
+  assert.match(questpack, /hintsByQuest\.set\(q\.id/);
+  assert.ok(!/hints: Array\.isArray\(q\.hints\)/.test(questpack),
+    'les indices ne doivent pas être une propriété de l\'entrée');
+  assert.match(atelier, /hintsByQuest\.get/);
+});
+
+test('le dernier indice est toujours gratuit', () => {
+  assert.match(questpack, /dernier indice doit être gratuit/,
+    'le validateur doit imposer le dernier indice gratuit');
+  assert.ok(doc.includes('dernier indice est toujours gratuit'),
+    'le contrat doit l\'annoncer');
+});
+
+test('la compréhension ne bloque pas la validation', () => {
+  assert.match(doc, /ne \*\*bloque pas\*\* la validation/);
+  assert.match(doc, /required: true` signifie\s*\n?\s*simplement/);
+});
+
+/* ---------------------------------------------------------------------- piles */
+
+test('le contrat annonce les limites de débit, le code les applique', () => {
   for (const [nom, limite] of [
     ['register', 12], ['submit', 40], ['quests', 120], ['live', 300], ['api', 600],
   ]) {
@@ -78,52 +160,14 @@ test('le contrat annonce des limites de débit, le code les applique', () => {
   }
   assert.match(ratelimit, /RATE_LIMIT/, 'l\'activation/désactivation des plafonds doit être pilotable');
   assert.match(ratelimit, /TRUST_PROXY/, 'le comptage doit dépendre de la présence d\'un proxy');
-  // Sans cette garde, un X-Forwarded-For forgé réinitialiserait le compteur.
   assert.match(ratelimit, /if \(TRUST_PROXY\)[\s\S]{0,200}x-forwarded-for/,
     'X-Forwarded-For doit être conditionné à TRUST_PROXY');
 });
 
-test('le contrat décrit les champs de la réponse de submit', () => {
-  const bloc = doc.split('### 2.2')[1].split('### 2.3')[0];
-  const champs = [...bloc.matchAll(/^\s*"?(\w+)"?:/gm)].map((m) => m[1]);
-  assert.ok(champs.length >= 10, 'la doc doit lister les champs de la réponse');
-  for (const champ of champs) {
-    assert.ok(api.includes(champ), `src/routes/api.js ne produit jamais « ${champ} »`);
-  }
-});
-
-test('le contrat décrit les champs de overview attendus par le PDF', () => {
-  const bloc = doc.split('### 2.3')[1].split('### 2.4')[0];
-  for (const champ of ['team', 'mode', 'score', 'completed', 'last_submission', 'finished', 'rank', 'progress']) {
-    assert.ok(bloc.includes(champ), `le contrat ne documente pas « ${champ} »`);
-    assert.ok(portal.includes(champ), `src/portal.js ne produit pas « ${champ} »`);
-  }
-});
-
-test('le barème documenté correspond au code', () => {
-  // §3.1 : 60 / 30 / 15, plafond 25 %, malus 5, plancher base/2.
-  assert.match(scoring, /SPEED_BONUS = \[60, 30, 15\]/);
-  assert.match(scoring, /PENALTY_PER_WRONG_FLAG = 5/);
-  assert.match(scoring, /PACE_BONUS_RATIO = 0\.25/);
-  assert.match(scoring, /Math\.round\(base \/ 2\)/, 'le plancher à base/2 doit exister');
-  assert.ok(doc.includes('base + podium + vitesse − malus'), 'le contrat doit résumer la formule');
-});
-
-test('le contrat impose un podium par mission, pas par joueur', () => {
-  // §3.1 : le rang est global à la mission parmi les compétitifs.
-  const repo = fs.readFileSync(path.resolve('src/repo/arena.js'), 'utf8');
-  const bloc = repo.split('rankForQuest')[1]?.slice(0, 600) ?? '';
-  assert.match(bloc, /p\.mode = 'competitive'/,
-    'le décompte du podium doit exclure le mode normal');
-  assert.ok(doc.includes('parmi les compétitifs'), 'le contrat doit le dire');
-});
-
-test('le contrat impose un score recalculé, jamais incrémenté', () => {
-  assert.match(progress, /export function recomputeScore/);
-  // Le score ne doit être écrit que par cette fonction.
-  const writes = api.match(/setScore\(|UPDATE players SET score/g) ?? [];
-  assert.equal(writes.length, 0, 'aucune écriture directe du score dans les routes');
-  assert.ok(doc.includes('jamais incrémenté'));
+test('le contrat documente le piège du NAT en salle', () => {
+  const bloc = section('### 2.6');
+  assert.match(bloc, /NAT/);
+  assert.match(bloc, /429/);
 });
 
 test('le contrat annonce les choix de pile, le code les respecte', () => {
@@ -131,50 +175,72 @@ test('le contrat annonce les choix de pile, le code les respecte', () => {
   assert.ok('express' in pkg.dependencies);
   assert.ok('linkedom' in pkg.devDependencies, 'linkedom est une devDependency');
   assert.ok(doc.includes('node:sqlite'));
-  // Le contrat peut mentionner better-sqlite3 uniquement pour expliquer qu'on
-  // l'a écarté ; il ne doit plus le recommander.
   assert.ok(
     !/dépendances?[^.]*better-sqlite3|besoin de[^.]*better-sqlite3/i.test(doc),
     'le contrat ne doit plus recommander better-sqlite3',
   );
-  assert.ok(!api.includes('better-sqlite3'), 'le code ne doit plus l\'importer');
-  // db.js et le README peuvent en parler pour expliquer le choix, jamais
-  // l'importer : on vérifie l'absence d'import réel.
-  for (const f of ['src/db.js', 'README.md']) {
-    const src = fs.readFileSync(path.resolve(f), 'utf8');
-    assert.doesNotMatch(src, /(?:import|require)\s*\(?\s*['"]better-sqlite3/,
+  for (const f of ['src/db.js', 'README.md', 'src/routes/api.js']) {
+    assert.doesNotMatch(read(f), /(?:import|require)\s*\(?\s*['"]better-sqlite3/,
       `${f} ne doit pas importer better-sqlite3`);
   }
-  // SQLite natif, transactions imbriquables.
-  assert.match(fs.readFileSync(path.resolve('src/db.js'), 'utf8'), /SAVEPOINT/);
+  assert.match(read('src/db.js'), /SAVEPOINT/, 'le wrapper doit permettre les transactions imbriquables');
 });
 
 test('le contrat exige un démarrage bloqué si le contenu est invalide', () => {
-  const questpack = fs.readFileSync(path.resolve('src/questpack.js'), 'utf8');
   assert.match(questpack, /await loadQuestpack\(\)/, 'le chargement doit être au démarrage du module');
   assert.ok(doc.includes('empêche le serveur de démarrer'));
 });
 
 test('le contrat impose les règles de verrouillage du client', () => {
-  // §2.4 : la correction n'est envoyée que pour une mission validée.
-  assert.ok(api.includes('solution: done.has(q.id) ? q.solution : null'),
+  assert.match(api, /solution: done\.has\(q\.id\) \? q\.solution : null/,
     'la correction doit être conditionnée à la validation');
-  assert.ok(doc.includes('uniquement pour les missions validées'));
+  assert.ok(/les\s*\n?missions validées/.test(doc),
+    'le contrat doit dire que la correction est conditionnée');
 });
 
-test('le contrat documente que le temps n\'existe pas en mode normal', () => {
-  const bloc = doc.split('### 3.4')[1] ?? '';
-  assert.ok(bloc.includes('jamais renvoyé par l\'API'));
-  assert.ok(api.includes('time_display: competitive ?'), 'la réponse doit conditionner le temps');
-  assert.ok(progress.includes('competitive'), 'le score doit dépendre du mode');
+/* -------------------------------------------------------------------- maîtrise */
+
+test('le contrat fixe les deux invariants de la maîtrise', async () => {
+  const bloc = section('## 3. La maîtrise');
+  assert.match(bloc, /dénominateur de la progression est le jeu entier/);
+  assert.match(bloc, /Le niveau exige deux seuils/);
+
+  // Les paliers du contrat et ceux du code doivent concorder. On compare des
+  // nombres, pas des chaînes : `0.10` et `0.1` sont le même seuil, et un test
+  // qui échouerait sur la typographie du code serait un mauvais test.
+  const { LEVELS } = await import('../src/mastery.js');
+  const attendus = [
+    ['Ça tourne', 0.10, 0.05],
+    ['Autonome', 0.50, 0.25],
+    ['Geste sûr', 0.75, 0.50],
+    ['Maîtrise', 0.90, 0.80],
+  ];
+  for (const [nom, min, minProgress] of attendus) {
+    assert.ok(bloc.includes(nom), `le contrat ne liste pas le palier « ${nom} »`);
+    const palier = LEVELS.find((l) => l.name === nom);
+    assert.ok(palier, `src/mastery.js ne déclare pas le palier « ${nom} »`);
+    assert.equal(palier.min, min, `seuil d'autonomie de « ${nom} »`);
+    assert.equal(palier.minProgress, minProgress, `seuil d'avancement de « ${nom} »`);
+  }
+  // L'ordre doit être croissant, sinon le palier affiché saute des niveaux.
+  for (let i = 1; i < LEVELS.length; i++) {
+    assert.ok(LEVELS[i].min >= LEVELS[i - 1].min
+      && LEVELS[i].minProgress >= LEVELS[i - 1].minProgress,
+    `le palier « ${LEVELS[i].name} » est en dessous du précédent`);
+  }
+});
+
+test('la maîtrise est calculée depuis les colonnes, jamais un cumul', () => {
+  assert.match(progress, /hints_used: result\.hints_used/);
+  assert.match(progress, /check_ok: result\.check_ok/);
+  assert.ok(!/UPDATE players SET score/.test(progress), 'plus d\'écriture de score');
 });
 
 test('le contrat et le README annoncent les mêmes chiffres', () => {
-  const readme = fs.readFileSync(path.resolve('README.md'), 'utf8');
-  // Le README annonce un nombre de tests : il doit exister dans la suite.
+  const readme = read('README.md');
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);
   assert.ok(annonce, 'le README doit indiquer le nombre de tests');
   const fichiers = fs.readdirSync(path.resolve('test')).filter((f) => f.endsWith('.test.js'));
-  assert.ok(fichiers.length >= 6, 'la suite doit être répartie sur plusieurs fichiers');
+  assert.ok(fichiers.length >= 7, `la suite doit être répartie sur au moins 7 fichiers, ${fichiers.length}`);
   assert.ok(Number(annonce[1]) >= fichiers.length, 'le nombre annoncé doit être plausible');
 });

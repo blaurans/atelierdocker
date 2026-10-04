@@ -3,6 +3,7 @@ import express from 'express';
 import { config, ROOT } from './config.js';
 import { db, log, clock } from './db.js';
 import { api } from './routes/api.js';
+import { atelier } from './routes/atelier.js';
 import { quests } from './questpack.js';
 import { counts } from './repo/arena.js';
 
@@ -36,6 +37,12 @@ export function createApp() {
     res.json({ ok: true, uptime: Math.round(process.uptime()), ...counts() });
   });
 
+  // Les trois endpoints de maîtrise sont montés à part et **avant** `api` :
+  // ils vivent sous `/api/quests/:id/...`, qui aurait été capté par les
+  // routes de liste si l'ordre était inversé. Un router plus spécifique
+  // d'abord, c'est la règle Express — mais l'ordre de montage est ici une
+  // décision et pas un hasard.
+  app.use('/api', atelier);
   app.use('/api', api);
 
   // Portail et client. Les assets sont servis en dernier pour ne jamais

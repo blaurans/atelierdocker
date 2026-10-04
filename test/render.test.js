@@ -49,9 +49,13 @@ const questPayload = (completed = []) => ({
     quests: m.quests.map((q) => ({
       id: q.id, number: q.number, title: q.title, points: q.points,
       flagship: q.flagship, est_minutes: q.estMinutes, teaches: q.teaches,
-      checkpoint: q.checkpoint, brief: q.brief, hints: q.hints,
-      // Le serveur ne transmet ni le flag (il n'existe pas dans le contenu)
-      // ni la correction avant validation. Il fournit la commande.
+      checkpoint: q.checkpoint, brief: q.brief,
+      hint_count: pack.hintsByQuest.get(q.id).length,
+      charge: q.charge ?? null,
+      check: q.check ?? [], recall: q.recall ?? null,
+      // Le serveur ne transmet ni le flag (il n'existe pas dans le contenu),
+      // ni la correction avant validation, ni les indices. Il fournit la
+      // commande.
       fetch_hint: (q.fetchHint ?? '')
         .replaceAll('SERVER_IP', 'localhost:8000')
         .replaceAll('dq_xxxxxxxxxxxxxxxx', 'dq_testtoken'),
@@ -63,8 +67,19 @@ const questPayload = (completed = []) => ({
 });
 
 const mePayload = (completed = []) => ({
-  team: 'Testeur', mode: 'competitive', mode_label: 'Compétitif',
-  score: completed.length * 90, rank: 1, total_quests: pack.totalQuests,
+  team: 'Testeur', mode: 'competitive', mode_label: 'Challenge',
+  mastery: {
+    done: completed.length, total_quests: pack.totalQuests,
+    autonomous: completed.length, understood: completed.length,
+    reflex: completed.length, hints_used: 0,
+    progress_ratio: completed.length / pack.totalQuests,
+    autonomy_ratio: completed.length ? 1 : 0,
+    comprehension_ratio: completed.length ? 1 : 0,
+    reflex_ratio: completed.length ? 1 : 0,
+    level: { key: 'ranim', name: 'Ça tourne' },
+    modules: [],
+  },
+  total_quests: pack.totalQuests,
   progress: `${completed.length}/${pack.totalQuests}`,
   completed_percent: Math.round((completed.length / pack.totalQuests) * 100),
   finished: completed.length === pack.totalQuests,
@@ -73,8 +88,10 @@ const mePayload = (completed = []) => ({
   history: completed.map((id, i) => {
     const q = pack.quests.find((x) => x.id === id);
     return {
-      quest_id: id, quest_number: q.number, points: q.points,
-      speed_bonus: i < 3 ? 60 : 0, pace_bonus: 20, penalty: 0,
+      quest_id: id, quest_number: q.number, title: q.title,
+      hints_used: 0, autonomous: true, check_ok: true, recall_ok: true,
+      status: 'done',
+      check_attempts: 1, recall_attempts: 1,
       wrong_flags: i === 0 ? 1 : 0,
       time_ms: 120_000, at: '2026-01-01T14:00:00.000Z', time_display: '2 min 00 s',
     };
@@ -99,6 +116,7 @@ const overviewPayload = () => ({
 
 let registered = [];
 let submitted = [];
+let hintsPris = 0;
 
 function stubFetch(routes = {}) {
   globalThis.fetch = async (url, opts = {}) => {
@@ -113,6 +131,15 @@ function stubFetch(routes = {}) {
     if (path === '/api/commands') return json([{ action: 'Lister', cmd: 'docker ps' }]);
     if (path === '/api/quests') return json(questPayload(registered));
     if (path === '/api/me') return json(mePayload(registered));
+    if (path.startsWith('/api/quests/') && path.endsWith('/hint')) {
+      const r = {
+        status: 'ok', index: hintsPris, hint: 'Indice simulé.',
+        autonomy_lost: hintsPris === 0 ? 1 : 0,
+        remaining: Math.max(0, 2 - hintsPris - 1), free_next: false,
+      };
+      hintsPris += 1;
+      return json(r);
+    }
     if (path === '/api/register') {
       return json({ status: 'created', team: body.team, mode: body.mode, token: 'dq_test', message: 'Bienvenue !' });
     }
@@ -124,10 +151,10 @@ function stubFetch(routes = {}) {
       const done = q.flagship;
       return json({
         status: 'success', mode: 'competitive', quest_validated: q.number,
-        quest_title: q.title, points_earned: q.points,
-        breakdown: { base: q.points, speed_bonus: 60, pace_bonus: 20, penalty: 5 },
-        score_total: 900, completed_count: `${registered.length}/${pack.totalQuests}`,
-        rank: 1, finished: registered.length === pack.totalQuests,
+        quest_title: q.title, mastery: mePayload(registered).mastery,
+        quest_result: { hints_used: hintsPris, autonomous: hintsPris === 0, check_ok: true },
+        completed_count: `${registered.length}/${pack.totalQuests}`,
+        finished: registered.length === pack.totalQuests,
         unlocked_next: null, time_display: '2 min 00 s', message: 'Validée !',
       });
     }
@@ -425,6 +452,7 @@ test('aucune mission ne demande une réponse sans destination', async () => {
 test('le panneau de mission affiche énoncé, indices et point de contrôle', async () => {
   stubFetch();
   registered = [];
+  hintsPris = 0;
   const app = await loadClient();
   store.clear();
   await app.bootPlayer();
@@ -436,11 +464,20 @@ test('le panneau de mission affiche énoncé, indices et point de contrôle', as
   assert.match(panel.textContent, new RegExp(q.checkpoint.slice(0, 20)));
   assert.equal(panel.querySelectorAll('.teach').length, q.teaches.length);
 
-  // Les indices sont repliés au départ, puis se débloquent un par un.
-  assert.equal(panel.querySelectorAll('.hint').length, 0);
+  // Aucun indice n'est présent avant le clic : ils ne sont plus dans le payload,
+  // et c'est ce qui rend la facturation possible.
+  assert.equal(panel.querySelectorAll('.hint').length, 0,
+    'aucun indice ne doit être rendu avant d\'être demandé');
+
   const idxBtn = [...panel.querySelectorAll('button')].find((b) => /indice/i.test(b.textContent));
   idxBtn.dispatchEvent(new dom.window.Event('click'));
-  assert.equal(panel.querySelectorAll('.hint').length, 1, 'un indice s\'affiche');
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(panel.querySelectorAll('.hint').length, 1, 'un indice s\'affiche après la demande');
+  // Le coût est affiché : un élève ne doit pas découvrir qu'il a payé en
+  // regardant son score après coup.
+  assert.ok(panel.querySelector('.hint-cost'),
+    'le coût de l\'indice doit être dit dans la mission');
 
   // Le champ de soumission est présent avec le bon placeholder.
   assert.match(panel.querySelector('#flagInput').getAttribute('placeholder'), /FLAG/);

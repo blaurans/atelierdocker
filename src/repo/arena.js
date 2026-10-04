@@ -37,9 +37,14 @@ export function touch(id, ip = null) {
   }
 }
 
-export function setScore(id, score) {
-  db.prepare('UPDATE players SET score = ? WHERE id = ?').run(score, id);
-}
+/**
+ * Score cumulé.
+ *
+ * Conservé en base, mais plus écrit par le jeu : la V2 ne classe plus les
+ * élèves. La colonne reste parce que `resetPlayer` et l'export enseignant la
+ * référencent encore, et parce qu'une base existante ne se migre pas en
+ * supprimant une colonne. Rien dans le portail ne la lit.
+ */
 
 export function markFinished(id) {
   db.prepare('UPDATE players SET finished_at = ? WHERE id = ? AND finished_at IS NULL')
@@ -66,11 +71,22 @@ export function deletePlayer(id) {
 
 /* -------------------------------------------------------------- completions */
 
+/**
+ * Insertion d'une validation.
+ *
+ * Ni `speed_bonus`, ni `pace_bonus`, ni `penalty` : ces colonnes sont celles
+ * du barème V1, plus rien ne les écrit, et les laisser dans l'INSERT ferait
+ * échouer la requête en NOT NULL — c'est exactement ce qui est arrivé. Elles
+ * gardent leur DEFAULT 0 en base et les valeurs de la V1 pour les élèves qui
+ * avaient commencé avant la bascule.
+ */
 const insertCompletion = db.prepare(`
   INSERT INTO completions
-    (player_id, quest_id, quest_number, points, speed_bonus, wrong_flags, time_ms, status, completed_at, completed_hh)
+    (player_id, quest_id, quest_number, points, wrong_flags, time_ms,
+     hints_used, check_ok, recall_ok, status, completed_at, completed_hh)
   VALUES
-    (@player_id, @quest_id, @quest_number, @points, @speed_bonus, @wrong_flags, @time_ms, @status, @at, @hh)
+    (@player_id, @quest_id, @quest_number, @points, @wrong_flags, @time_ms,
+     @hints_used, @check_ok, @recall_ok, @status, @at, @hh)
 `);
 
 const hasCompletion = db.prepare('SELECT 1 FROM completions WHERE player_id = ? AND quest_id = ?');
@@ -93,32 +109,6 @@ const countBadFlags = db.prepare(
   `SELECT COUNT(*) AS n FROM events WHERE player_id = ? AND kind = 'bad_flag'`
 );
 
-/**
- * Rang global dans la course à une quête (1 = premier arrivé).
- * Le timestamp ISO-8601 a une résolution de la milliseconde et le tri est
- * stable, donc « le premier submit gagne » tient.
- */
-/**
- * Rang dans la course à une quête (1 = premier arrivé).
- *
- * Seuls les joueurs **en mode compétitif** sont comptés. Le podium est la
- * course des compétitifs : si le mode normal alimentait le même compteur, une
- * équipe « zen » validating tôt priverait un compétitif du bonus, ce qui est
- * incohérent avec l'esprit des deux modes.
- *
- * Attention : `node:sqlite` n'accepte pas de mélanger `?` et `@nom` dans la
- * même requête. Tout le statement est donc en paramètres nommés.
- */
-const rankForQuest = db.prepare(
-  `SELECT COUNT(*) AS n
-     FROM completions c
-     JOIN players p ON p.id = c.player_id
-    WHERE c.quest_number = @number
-      AND c.status = 'done'
-      AND p.mode = 'competitive'
-      AND (c.completed_at < @at OR (c.completed_at = @at AND c.player_id <> @pid))`
-);
-
 export const isDone = (playerId, questId) => !!hasCompletion.get(playerId, questId);
 export const doneOf = (playerId) => completionsOf.all(playerId);
 export const pendingOf_ = (playerId) => pendingOf.all(playerId);
@@ -129,6 +119,9 @@ export const recordCompletion = (args) =>
   insertCompletion.run({
     time_ms: null,
     wrong_flags: 0,
+    hints_used: 0,
+    check_ok: 0,
+    recall_ok: 0,
     status: 'done',
     ...args,
     at: now(),
@@ -139,22 +132,10 @@ export const setCompletionStatus = (playerId, questId, status) =>
   db.prepare('UPDATE completions SET status = ? WHERE player_id = ? AND quest_id = ?')
     .run(status, playerId, questId);
 
-/**
- * Enregistre le détail du barème d'une validation (bonus de podium, de
- * rapidité, pénalité). `recomputeScore` est la seule source de vérité : elle
- * écrit ici pour que l'historique affiché au joueur soit exact.
- */
-export const persistBreakdown = (completionId, result) =>
-  db.prepare('UPDATE completions SET speed_bonus = ?, pace_bonus = ?, penalty = ? WHERE id = ?')
-    .run(result.speed_bonus, result.pace_bonus, result.penalty, completionId);
-
 export const markSubmitTime = (playerId, hh) =>
   db.prepare(
     'UPDATE players SET last_submit = ?, last_submit_at = ?, last_seen = ? WHERE id = ?',
   ).run(hh, now(), now(), playerId);
-
-export const globalRankFor = (questNumber, at, excludePlayerId) =>
-  rankForQuest.get({ number: questNumber, at, pid: excludePlayerId }).n + 1;
 
 /* ------------------------------------------------------------------- events */
 

@@ -73,7 +73,13 @@ test('chaque quête est utilisable en l’état', opts, () => {
     assert.ok(q.brief.length > 40, `${q.id} : brief trop court`);
     assert.ok(q.checkpoint.length >= 10, `${q.id} : checkpoint manquant`);
     assert.ok(q.teaches.length >= 1, `${q.id} : teaches vide`);
-    assert.ok(q.hints.length <= 3, `${q.id} : trop d'indices`);
+    // Les indices ne sont plus sur l'entrée : ils vivent dans `hintsByQuest`,
+    // hors du graphe d'objets. C'est ce qui les empêche de repartir dans le
+    // payload, et c'est donc ce qu'il faut interroger ici.
+    assert.ok(pack.hintsByQuest.get(q.id).length <= 3, `${q.id} : trop d'indices`);
+    assert.equal(q.hint_count, pack.hintsByQuest.get(q.id).length,
+      `${q.id} : hint_count doit refléter le nombre d'indices réels`);
+    assert.equal(q.hints, undefined, `${q.id} : les indices ne doivent pas être sur l'entrée`);
     assert.ok(q.estMinutes >= 2 && q.estMinutes <= 25, `${q.id} : estMinutes hors bornes`);
     assert.match(q.flag, /^FLAG\{[A-Z0-9_]+\}$/, `${q.id} : format de flag`);
     assert.ok(!/^\s*\|/m.test(q.brief), `${q.id} : tableau Markdown dans brief`);

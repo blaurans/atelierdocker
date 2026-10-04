@@ -61,6 +61,20 @@ export const config = {
   templatesDir: path.join(ROOT, 'content', 'templates'),
 };
 
+/**
+ * Les deux modes, et ce qu'ils promettent à l'écran.
+ *
+ * Les valeurs sont un contrat d'API : les élèves s'inscrivent en ligne de
+ * commande avec `{"mode":"competitive"}`, et changer la valeur casserait les
+ *ofoches déjà données. Les libellés, eux, sont ce que l'élève lit — d'où
+ * « Challenge » plutôt que « Compétitif », qui dit le mécanisme sans dire ce
+ * que ça implique pour la note.
+ */
 export const MODES = /** @type {const} */ (['competitive', 'normal']);
+
+export const MODE_LABELS = {
+  competitive: 'Challenge',
+  normal: 'Sans stress',
+};
 
 export const isMode = (v) => MODES.includes(String(v ?? '').trim().toLowerCase());

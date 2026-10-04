@@ -116,7 +116,7 @@ test('les six missions gardent leurs commandes clés du cahier des charges', () 
   };
   for (const [flag, motifs] of Object.entries(attendues)) {
     const q = pack.byFlag.get(flag);
-    const texte = `${q.brief}\n${q.solution}\n${q.hints.join('\n')}`;
+    const texte = `${q.brief}\n${q.solution}\n${pack.hintsByQuest.get(q.id).join('\n')}`;
     for (const m of motifs) {
       assert.match(texte, m, `${q.title} : commande attendue non trouvée (${m})`);
     }
@@ -153,11 +153,15 @@ test('le mode normal ne peut pas recevoir de temps via l\'API', () => {
 });
 
 test('les indices sont ordonnés du plus flou au plus direct', () => {
+  // Un indice ne sert à rien s'il ne s'appuie sur rien : le premier ne doit
+  // pas être plus long que le dernier, sinon l'élève a tout lu avant de
+  // chercher. On vérifie la progression, pas seulement la présence.
   for (const q of all) {
-    if (q.hints.length === 3) {
-      const dernier = q.hints[2].length;
-      assert.ok(dernier > 0);
-    }
+    const indices = pack.hintsByQuest.get(q.id);
+    if (indices.length < 2) continue;
+    assert.ok(indices[indices.length - 1].length > 0, `${q.id} : dernier indice vide`);
+    assert.ok(indices[indices.length - 1].length >= indices[0].length * 0.5,
+      `${q.id} : le dernier indice devrait être au moins aussi direct que le premier`);
   }
 });
 

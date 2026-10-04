@@ -82,7 +82,7 @@ test('soumission : flag inconnu rejeté et tracé', async () => {
   assert.match(bad.json.error, /invalide/i);
 });
 
-test('soumissioncompetitive : barème, score cumulé et déverrouillage', async () => {
+test('soumission : la maîtrise progresse et le déverrouillage suit', async () => {
   wipe();
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Alice', mode: 'competitive' } });
   const [q1, q2, q3] = pack.quests;
@@ -90,64 +90,114 @@ test('soumissioncompetitive : barème, score cumulé et déverrouillage', async 
   const r1 = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, q1), token: reg.token } });
   assert.equal(r1.json.status, 'success');
   assert.equal(r1.json.quest_validated, 1);
-  assert.ok(r1.json.points_earned >= q1.points, 'le podium ne peut pas faire perdre de points');
-  assert.equal(r1.json.score_total, r1.json.points_earned);
-  assert.equal(r1.json.breakdown.base, q1.points);
   assert.equal(r1.json.completed_count, `1/${pack.totalQuests}`);
+  assert.equal(r1.json.mastery.done, 1);
+  // Pas de points nulle part : le score est mort.
+  assert.equal(r1.json.points_earned, undefined);
+  assert.equal(r1.json.score_total, undefined);
+  assert.equal(r1.json.breakdown, undefined);
+  assert.equal(r1.json.rank, undefined);
+  // Validée sans indice, elle compte pour l'autonomie.
+  assert.equal(r1.json.quest_result.autonomous, true);
+  assert.equal(r1.json.mastery.autonomous, 1);
   assert.equal(r1.json.unlocked_next, q2.id);
 
   const r2 = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, q2), token: reg.token } });
-  assert.equal(r2.json.score_total, r1.json.score_total + r2.json.points_earned);
+  assert.equal(r2.json.mastery.done, 2);
   assert.equal(r2.json.unlocked_next, q3.id);
 
-  // Doublon : refusé, et le score ne bouge pas.
+  // Doublon : refusé, et la maîtrise ne bouge pas.
   const dup = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, q2), token: reg.token } });
   assert.equal(dup.json.status, 'already_submitted');
-  assert.equal(dup.json.score_total, r2.json.score_total);
+  assert.equal(dup.json.mastery, undefined, 'une revalidation ne renvoie pas d\'état');
 });
 
-test('soumission normale : mêmes quêtes, zéro point, pas de temps', async () => {
+test('soumission normale : mêmes quêtes, mêmes chiffres qu’en Challenge', async () => {
   wipe();
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Bob', mode: 'normal' } });
 
   const r = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
   assert.equal(r.json.status, 'success');
-  assert.equal(r.json.points_earned, 0);
-  assert.equal(r.json.score_total, 0);
-  assert.equal(r.json.breakdown, null);
-  assert.equal(r.json.time_display, null);
+  assert.equal(r.json.mastery.done, 1);
+  assert.equal(r.json.points_earned, undefined);
+  assert.equal(r.json.score_total, undefined);
 
   const me = await api('/api/me', { token: reg.token });
-  assert.equal(me.json.score, null);
-  assert.equal(me.json.rank, null);
-  assert.equal(me.json.history[0].time_display, null, 'le temps ne doit pas sortir de l’API en mode normal');
+  // Les deux modes mesurent la même chose : il n'y a plus de « zéro point »
+  // propre au mode normal, parce qu'il n'y a plus de point du tout.
+  assert.equal(me.json.score, undefined);
+  assert.equal(me.json.rank, undefined);
+  assert.equal(me.json.mastery.done, 1);
+  // Le temps, lui, reste visible : c'est une mesure d'inconfort, pas de
+  // performance, et l'enseignant en a besoin pendant la séance.
+  assert.notEqual(me.json.history[0].time_ms, null);
   assert.equal(me.json.progress, `1/${pack.totalQuests}`);
 });
 
-test('le classement place le compétitif devant et isole les deux modes', async () => {
+test('le portail ne classe plus les élèves', async () => {
   wipe();
-  const zen = (await api('/api/register', { method: 'POST', body: { team: 'Zen', mode: 'normal' } })).json;
+  await api('/api/register', { method: 'POST', body: { team: 'Zen', mode: 'normal' } });
   await api('/api/register', { method: 'POST', body: { team: 'Vite', mode: 'competitive' } });
-  // Zen valide la même quête, mais en mode normal : il doit apparaître dans le
-  // tableau de suivi, pas au podium.
-  await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: zen.token }, pack.quests[0]), token: zen.token } });
+  const alpha = (await api('/api/register', { method: 'POST', body: { team: 'Alpha', mode: 'competitive' } })).json;
+  const bravo = (await api('/api/register', { method: 'POST', body: { team: 'Bravo', mode: 'competitive' } })).json;
 
-  // Deux compétitifs valident la quête 1 ; le second est deuxième.
-  const a = (await api('/api/register', { method: 'POST', body: { team: 'Alpha', mode: 'competitive' } })).json;
-  const b = (await api('/api/register', { method: 'POST', body: { team: 'Bravo', mode: 'competitive' } })).json;
-  const ra = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: a.token }, pack.quests[0]), token: a.token } });
-  const rb = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: b.token }, pack.quests[0]), token: b.token } });
-
-  assert.equal(ra.json.breakdown.speed_bonus, 60);
-  assert.equal(rb.json.breakdown.speed_bonus, 30);
+  // Alpha valide en premier, donc il passe « devant » au sens de la V1.
+  // La seule chose qui doit changer ici est l'absence de classement.
+  await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: alpha.token }, pack.quests[0]), token: alpha.token } });
+  await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: bravo.token }, pack.quests[0]), token: bravo.token } });
 
   const ov = await api('/api/overview');
-  assert.equal(ov.json.competitive.length, 3); // Vite, A, B
-  assert.equal(ov.json.normal.length, 1);      // Zen
-  assert.equal(ov.json.normal[0].score, 0, 'le mode normal ne porte pas de score');
-  assert.deepEqual(ov.json.normal[0].completed, [1]);
+  // Une seule liste, tous modes confondus : le portail ne trie plus par score.
+  assert.equal(Array.isArray(ov.json.players), true);
+  assert.equal(ov.json.competitive, undefined, 'plus de classement compétitif');
+  assert.equal(ov.json.normal, undefined, 'plus de classement normal');
+
+  const noms = ov.json.players.map((p) => p.team);
+  assert.deepEqual(noms, [...noms].sort((a, b) => a.localeCompare(b, 'fr')),
+    'le seul tri restant est alphabétique');
+
+  // Alpha et Bravo ont validé la même quête, dans le même ordre : mêmes ratios.
+  const a = ov.json.players.find((p) => p.team === 'Alpha');
+  const b = ov.json.players.find((p) => p.team === 'Bravo');
+  assert.equal(a.done, b.done);
+  assert.equal(a.autonomy_ratio, b.autonomy_ratio);
+  assert.equal(a.rank, undefined, 'aucun rang n\'est attribué');
+  assert.equal(a.score, undefined);
+  assert.equal(a.completed, undefined, 'plus de liste de numéros de quêtes');
+  assert.equal(a.progress_ratio, Math.round((1 / pack.totalQuests) * 100) / 100);
   assert.equal(ov.json.meta.total_quests, pack.totalQuests);
-  assert.ok(ov.json.competitive.every((p) => typeof p.rank === 'number'));
+});
+
+test('le portail dit où l\'élève en est, pas qui gagne', async () => {
+  wipe();
+  const bloquant = (await api('/api/register', { method: 'POST', body: { team: 'Bloque', mode: 'competitive' } })).json;
+  const ahead = (await api('/api/register', { method: 'POST', body: { team: 'Ahead', mode: 'competitive' } })).json;
+
+  // Le premier valide trois quêtes sans indice ; le premier en valide une,
+  // mais en prenant tous les indices disponibles.
+  for (const q of pack.quests.slice(0, 3)) {
+    await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: ahead.token }, q), token: ahead.token } });
+  }
+  const q0 = pack.quests[0];
+  for (let i = 0; i < q0.hint_count; i++) {
+    await api(`/api/quests/${q0.id}/hint`, { method: 'POST', token: bloquant.token, body: {} });
+  }
+  await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: bloquant.token }, q0), token: bloquant.token } });
+
+  const ov = (await api('/api/overview')).json;
+  const a = ov.players.find((p) => p.team === 'Ahead');
+  const b = ov.players.find((p) => p.team === 'Bloque');
+
+  assert.equal(a.done, 3);
+  assert.equal(a.hints_used, 0);
+  assert.equal(a.autonomy_ratio, 1);
+  assert.equal(b.done, 1);
+  assert.ok(b.hints_used > 0, 'les indices consommés sont comptés');
+  assert.equal(b.autonomy_ratio, 0, 'une quête prise avec des indices ne vaut pas pour l\'autonomie');
+
+  // C'est exactement l'information que l'enseignant cherche : « il est
+  // bloqué et il a consommé des indices », pas « il a moins de points ».
+  assert.ok(ov.meta.cohort.average_hints > 0);
 });
 
 test('par défaut aucune mission n\'est verrouillée', async () => {
@@ -170,19 +220,17 @@ test('on peut valider une mission tardive sans avoir fait les précédentes', as
   const r = await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, boss), token: reg.token } });
   assert.equal(r.json.status, 'success', 'aucun contrôle d\'ordre ne doit bloquer');
   assert.equal(r.json.quest_validated, boss.number);
-  assert.equal(r.json.breakdown.base, boss.points, 'le barème est inchangé');
 
-  // Le score cumule, et les missions manquantes restent accessibles.
   const me = (await api('/api/me', { token: reg.token })).json;
-  assert.equal(me.score, r.json.score_total);
   assert.equal(me.progress, `1/${pack.totalQuests}`);
+  assert.equal(me.mastery.done, 1);
   assert.ok(me.next_quest, 'le serveur propose toujours une suite');
 
   const q = (await api('/api/quests', { token: reg.token })).json;
   assert.equal(q.modules.flatMap((m) => m.quests).filter((x) => x.locked).length, 0);
 });
 
-test('valider dans le désordre ne fausse ni le score ni le classement', async () => {
+test('valider dans le désordre ne change rien à la maîtrise', async () => {
   wipe();
   const a = (await api('/api/register', { method: 'POST', body: { team: 'OrdreA', mode: 'competitive' } })).json;
   const b = (await api('/api/register', { method: 'POST', body: { team: 'OrdreB', mode: 'competitive' } })).json;
@@ -198,28 +246,15 @@ test('valider dans le désordre ne fausse ni le score ni le classement', async (
   const ma = (await api('/api/me', { token: a.token })).json;
   const mb = (await api('/api/me', { token: b.token })).json;
 
-  // Les points de base sont indépendants de l'ordre : les deux joueurs ont
-  // validé les mêmes trois missions, donc la même base cumulée.
+  // L'ordre de saisie n'a aucune incidence : c'est la garantie qu'un élève
+  // qui fait l'atelier 6 avant l'atelier 2 n'est pas lésé, ni avant ni après le
+  // remplacement du score.
   assert.equal(ma.progress, mb.progress);
+  assert.equal(ma.mastery.done, mb.mastery.done);
+  assert.equal(ma.mastery.autonomy_ratio, mb.mastery.autonomy_ratio);
   assert.equal(ma.history.length, 3);
   assert.equal(mb.history.length, 3);
-  const base = (me) => me.history.reduce((a, h) => a + h.points, 0);
-  assert.equal(base(ma), base(mb));
-  assert.equal(base(ma), pack.quests.slice(0, 3).reduce((a, q) => a + q.points, 0));
-
-  // L'écart de score ne peut venir que des bonus, pas de l'ordre de saisie.
-  // A est arrivé premier sur chaque quête (60 pts de podium), B deuxième
-  // (30 pts). Le bonus de rapidité dépend aussi du temps, donc on borne large.
-  const podium = (me) => me.history.reduce((a, h) => a + h.speed_bonus, 0);
-  assert.equal(podium(ma), 3 * 60, 'A a été premier sur les trois');
-  assert.equal(podium(mb), 3 * 30, 'B a été deuxième sur les trois');
-  assert.equal(ma.score - base(ma) - podium(ma), ma.history.reduce((a, h) => a + h.pace_bonus, 0));
-  assert.equal(mb.score - base(mb) - podium(mb), mb.history.reduce((a, h) => a + h.pace_bonus, 0));
-
-  // Le podium attribue bien les bonus aux premiers arrivants.
-  const ra = (await api('/api/leaderboard/competitive')).json.leaderboard;
-  assert.equal(ra.length, 2);
-  assert.ok(ra[0].rank === 1 && ra[1].rank === 2);
+  assert.deepEqual(ma.mastery.modules.map((m) => m.done), mb.mastery.modules.map((m) => m.done));
 });
 
 test('un visiteur anonyme voit le programme mais tout verrouillé', async () => {
@@ -236,12 +271,12 @@ test('le portail suit la dernière soumission', async () => {
   assert.equal(reg.last_submission, undefined);
 
   let ov = (await api('/api/overview')).json;
-  assert.equal(ov.competitive[0].last_submission, '-', 'rien de soumis au départ');
+  assert.equal(ov.players[0].last_submission, '-', 'rien de soumis au départ');
 
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
 
   ov = (await api('/api/overview')).json;
-  const heure = ov.competitive[0].last_submission;
+  const heure = ov.players[0].last_submission;
   assert.match(heure, /^\d{2}:\d{2}:\d{2}$/, `horodatage inattendu : « ${heure} »`);
 });
 
@@ -272,7 +307,7 @@ test('le tableau de suivi indique le poste de chaque joueur', async () => {
   await api('/api/register', { method: 'POST', body: { team: 'DepuisPoste', mode: 'normal' } });
 
   const ov = (await api('/api/overview')).json;
-  const row = ov.normal.find((p) => p.team === 'DepuisPoste');
+  const row = ov.players.find((p) => p.team === 'DepuisPoste');
   assert.ok(row, 'le joueur doit apparaître au suivi');
   assert.ok('last_ip' in row, 'le suivi doit exposer le poste');
   // Le test tourne en local : on ne peut pas exiger l'adresse du poste réel,
@@ -285,13 +320,13 @@ test('un X-Forwarded-For forgé ne maquille pas le poste', async () => {
   wipe();
   await api('/api/register', { method: 'POST', body: { team: 'Forge', mode: 'normal' } });
 
-  const avant = (await api('/api/overview')).json.normal
+  const avant = (await api('/api/overview')).json.players
     .find((p) => p.team === 'Forge').last_ip;
 
   // TRUST_PROXY vaut off dans les tests : l'en-tête ne doit avoir aucun effet.
   await api('/api/overview', { headers: { 'X-Forwarded-For': '8.8.8.8' } });
 
-  const apres = (await api('/api/overview')).json.normal
+  const apres = (await api('/api/overview')).json.players
     .find((p) => p.team === 'Forge').last_ip;
   assert.notEqual(apres, '8.8.8.8', 'une IP forgée ne doit jamais être retenue');
   assert.equal(apres, avant);
@@ -307,20 +342,23 @@ test('l\'administration permet de remettre un joueur à zéro', async () => {
   wipe();
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'AReprendre', mode: 'competitive' } });
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
-  assert.equal((await api('/api/me', { token: reg.token })).json.score > 0, true);
+  assert.equal((await api('/api/me', { token: reg.token })).json.mastery.done, 1);
 
   const reset = await api('/api/admin/reset/AReprendre', { method: 'POST' });
   assert.equal(reset.status, 200);
 
   const me = (await api('/api/me', { token: reg.token })).json;
-  assert.equal(me.score, 0);
+  assert.equal(me.mastery.done, 0, 'la maîtrise repart de zéro');
+  assert.equal(me.mastery.autonomy_ratio, 0);
   assert.equal(me.progress, `0/${pack.totalQuests}`, 'la progression repart de zéro');
-  assert.equal(me.rank, 1, 'le joueur reste inscrit et reclassé');
+  // Le joueur reste inscrit, mais il n'a plus de rang : il n'y en a plus.
+  assert.equal(me.team, 'AReprendre');
+  assert.equal(me.rank, undefined);
 
   assert.equal((await api('/api/admin/reset/Inexistant', { method: 'POST' })).status, 404);
 });
 
-test('changer de mode remet le score à zéro', async () => {
+test('changer de mode efface le parcours', async () => {
   wipe();
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Converti', mode: 'competitive' } });
   await api('/api/submit', { method: 'POST', body: { flag: secretFor({ token: reg.token }, pack.quests[0]), token: reg.token } });
@@ -330,7 +368,11 @@ test('changer de mode remet le score à zéro', async () => {
 
   const me = (await api('/api/me', { token: reg.token })).json;
   assert.equal(me.mode, 'normal');
-  assert.equal(me.score, null, 'le mode normal ne porte aucun score');
+  // Les validations obtenues sous les règles de l'autre mode ne sont pas
+  // conservées : elles seraient incohérentes avec les indices consommés et
+  // les QCM répondus dans l'autre cadre.
+  assert.equal(me.mastery.done, 0);
+  assert.equal(me.progress, `0/${pack.totalQuests}`);
 });
 
 test('le flux SSE pousse un état au changement', async () => {
@@ -343,8 +385,21 @@ test('le flux SSE pousse un état au changement', async () => {
   const first = await reader.read();
   const text = new TextDecoder().decode(first.value);
   assert.match(text, /event: overview/);
-  assert.match(text, /"competitive"/);
+  // La V1 envoyait un tableau `competitive` trié par score. La V2 envoie une
+  // liste `players` unique, triée alphabétiquement : le test le verrouille,
+  // sinon un retour accidentel du podium passerait inaperçu.
+  assert.match(text, /"players"/);
+  assert.doesNotMatch(text, /"competitive":\[/);
 
+  // L'inscription pousse un nouvel état sur le flux ouvert.
+  const pushed = reader.read();
   await api('/api/register', { method: 'POST', body: { team: 'SSE', mode: 'competitive' } });
+  const next = await Promise.race([
+    pushed,
+    new Promise((r) => setTimeout(() => r(null), 3000)),
+  ]);
+  assert.ok(next, 'le flux doit pousser un état au changement');
+  assert.match(new TextDecoder().decode(next.value), /"players"/);
+
   ac.abort();
 });
