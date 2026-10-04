@@ -24,7 +24,7 @@ test('les six quêtes phares sont bien présentes, au bon endroit', () => {
     { flag: 'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}', titre: 'Le premier serveur de la librairie', module: 2 },
     { flag: 'FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}', titre: 'Le conteneur est isolé', module: 3 },
     { flag: 'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}', titre: 'Deux services, une machine', module: 4 },
-    { flag: 'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}', titre: 'Image Alchemist', module: 5 },
+    { flag: 'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}', titre: 'La méthode de la librairie', module: 5 },
     { flag: 'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}', titre: 'Persistence Guardian', module: 6 },
     { flag: 'FLAG{COMPOSE_ORCHESTRATION_TITAN}', titre: 'Compose Overlord', module: 7 },
   ];
@@ -89,7 +89,7 @@ test('les quêtes phares gardent leur technique de récupération', () => {
     'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}': ['Le premier serveur de la librairie', 2],
     'FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}': ['Le conteneur est isolé', 3],
     'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}': ['Deux services, une machine', 4],
-    'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': ['Image Alchemist', 5],
+    'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}': ['La méthode de la librairie', 5],
     'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}': ['Persistence Guardian', 6],
     'FLAG{COMPOSE_ORCHESTRATION_TITAN}': ['Compose Overlord', 7],
   };
@@ -138,7 +138,7 @@ test('les quêtes phares gardent leurs commandes clés', () => {
     'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}': [/docker\s+run\s+-d/, /-p\s+8080:80/, /nginx/, /curl/, /systemctl\s+restart/],
     'FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}': [/docker\s+run\s+-it/, /alpine/, /\bid\b/, /ps aux/],
     'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}': [/-p\s+8080:80/, /nginx/, /docker\s+exec/, /curl/, /--network/],
-    'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': [/Dockerfile/, /docker\s+build/, /EXPOSE/],
+    'FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}': [/Dockerfile/, /docker\s+build/, /EXPOSE/, /daemon off/, /docker\s+tag/],
     'FLAG{DATA_PERSISTENCE_VAULT_RESCUE}': [/docker\s+volume\s+create/, /-v\s+vault_data/, /docker\s+volume\s+rm/],
     'FLAG{COMPOSE_ORCHESTRATION_TITAN}': [/docker[-\s]compose\s+up\s+-d/, /redis/, /docker\s+compose\s+down/],
   };

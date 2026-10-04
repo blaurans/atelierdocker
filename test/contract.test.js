@@ -275,6 +275,21 @@ test('la maîtrise est calculée depuis les colonnes, jamais un cumul', () => {
   assert.ok(!/UPDATE players SET score/.test(progress), 'plus d\'écriture de score');
 });
 
+test('les totaux d\'ateliers croissent strictement', async () => {
+  // `src/questpack.js` ne refuse qu'une somme *inférieure* à la précédente.
+  // Une égalité passe donc — et une suite 100/200/300/400/400 dirait que le
+  // contenu a stagné alors qu'il a été réécrit. On verrouille la croissance.
+  const { quests } = await import('../src/questpack.js');
+  let precedent = 0;
+  for (const m of quests().modules) {
+    const somme = m.quests.reduce((a, q) => a + q.points, 0);
+    assert.ok(somme > precedent,
+      `module ${m.module} : ${somme} pts, ne croît pas par rapport à ${precedent}`);
+    assert.equal(somme % 100, 0, `module ${m.module} : ${somme} n'est pas un multiple de 100`);
+    precedent = somme;
+  }
+});
+
 test('le contrat et le README annoncent les mêmes chiffres', () => {
   const readme = read('README.md');
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);

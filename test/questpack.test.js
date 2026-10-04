@@ -55,7 +55,7 @@ test('les six missions du cahier des charges sont conservées avec leur barème'
     ['FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}', 100, 'Le premier serveur de la librairie'],
     ['FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}', 200, 'Le conteneur est isolé'],
     ['FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}', 300, 'Deux services, une machine'],
-    ['FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}', 400, 'Image Alchemist'],
+    ['FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}', 400, 'La méthode de la librairie'],
     ['FLAG{DATA_PERSISTENCE_VAULT_RESCUE}', 500, 'Persistence Guardian'],
     ['FLAG{COMPOSE_ORCHESTRATION_TITAN}', 600, 'Compose Overlord'],
   ];
