@@ -25,12 +25,23 @@ if (!CLE) {
 
 const lire = async (url, init) => {
   const r = await fetch(url, init);
-  return r.ok ? r.json() : null;
+  return r.ok ? r.json() : { __statut: r.status };
 };
 
-const overview = await lire(`${B}/api/overview`);
-if (!overview) {
-  console.error(`Portail injoignable : ${B}`);
+const entetes = { 'X-Arena-Admin': CLE };
+
+// `/api/overview` est derrière le mot de passe depuis que l'administration est
+// fermée. Sans l'en-tête, la vue de classe répond 401 — et le script
+// interpretait ça comme « portail injoignable », ce qui envoie chercher du côté
+// réseau pendant qu'il n'y a rien à voir. La distinction est faite ici.
+const overview = await lire(`${B}/api/overview`, { headers: entetes });
+if (overview.__statut === 401 || overview.__statut === 403) {
+  console.error(`${B} refuse la clé d'administration (HTTP ${overview.__statut}).`
+    + ' Vérifiez que ATELIER_ADMIN_KEY est bien celle du portail.');
+  process.exit(1);
+}
+if (overview.__statut) {
+  console.error(`Réponse inattendue du portail : HTTP ${overview.__statut} (${B})`);
   process.exit(1);
 }
 
@@ -47,14 +58,13 @@ if (!cibles.length) {
 }
 
 for (const equipe of cibles) {
-  const supprime = await lire(`${B}/api/admin/delete/${encodeURIComponent(equipe)}`, {
-    method: 'POST',
-    headers: { 'X-Arena-Admin': CLE },
+  const r = await fetch(`${B}/api/admin/delete/${encodeURIComponent(equipe)}`, {
+    method: 'POST', headers: entetes,
   });
-  console.log(supprime ? `  supprimé ${equipe}` : `  ÉCHEC   ${equipe}`);
+  console.log(r.ok ? `  supprimé ${equipe}` : `  ÉCHEC   ${equipe} (HTTP ${r.status})`);
 }
 
-const reste = (await lire(`${B}/api/overview`))?.players ?? [];
+const reste = (await lire(`${B}/api/overview`, { headers: entetes }))?.players ?? [];
 const oublies = reste.filter((p) => p.team.startsWith(PREV));
 console.log(`${cibles.length - oublies.length}/${cibles.length} supprimés.`);
 
