@@ -1,229 +1,297 @@
-// Module 4 — Réseau & ports
-// La quête phare qui termine le module est la mission officielle n°3 « Port Master ».
+// Atelier 4 — Faire les se parler
+//
+// Le site de la librairie tourne, mais il est seul sur sa machine. L'atelier
+// 3 a montré qu'un conteneur est cloisonné ; celui-ci montre ce que ce
+// cloisonnement permet : plusieurs conteneurs qui se parlent, sur un réseau
+// privé, sans être exposés.
+//
+// Le fil rouge avance : la librairie a deux services — le site et une petite
+// base de données — et ils doivent se trouver sans passer par la machine hôte.
+//
+// Mêmes règles qu'aux ateliers 1 à 3 : aucun artefact mort, un `recall` seulement
+// quand la réponse n'est pas dans l'énoncé, un `charge` qui finit par 0.
 export default {
   meta: {
-    slug: 'm4-reseau-et-ports',
+    slug: 'm4-faire-les-se-parler',
     module: 4,
-    title: 'Réseau & ports',
-    tagline: 'Le réseau par défaut, la traduction de ports, et le DNS interne',
-    icon: '🌐',
+    title: 'Faire les se parler',
+    tagline: 'Ports, réseaux privés, et un service qui trouve l\'autre par son nom',
+    icon: '🔗',
   },
 
   quests: [
     {
-      id: 'm4-01-reseau-par-defaut',
+      id: 'm4-01-le-reseau-par-defaut',
       order: 1,
       title: 'Le réseau par défaut',
       points: 25,
-      flag: 'FLAG{BRIDGE_DEFAULT_NETWORK_ANATOMY}',
-      estMinutes: 12,
+      flag: 'FLAG{BRIDGE_DEFAULT_INSPECTED_PRIVATE_IP}',
+      estMinutes: 13,
       brief: `# Le réseau par défaut
 
-Un conteneur n'est pas seul au monde : Docker le branche automatiquement sur un réseau virtuel privé. Le premier réseau s'appelle \`bridge\`, et c'est celui que tu utilises sans le dire.
+Quand tu lances un conteneur sans rien demander, Docker le branche sur un réseau
+qui existe déjà. Tu n'as rien configuré, et pourtant ton conteneur est
+joignable — de l'intérieur, par d'autres conteneurs.
 
 **Ta mission**
 
-1. Liste les réseaux de ta machine :
+1. Liste les réseaux. Un seul devrait s'appeler \`bridge\` :
 
 \`\`\`bash
 docker network ls
 \`\`\`
 
-2. Regarde le réseau par défaut en détail :
+2. Regarde ce réseau de près. Il a un sous-réseau, une passerelle, et des
+   conteneurs connectés :
 
 \`\`\`bash
 docker network inspect bridge
 \`\`\`
 
-3. Démarre un conteneur qui attend cinq minutes, puis regarde sur quel réseau il s'est branché :
+Trois informations à en retenir : \`Subnet\`, \`Gateway\`, et la liste des
+conteneurs sous \`Containers\`.
+
+3. Lance un conteneur et regarde **de l'intérieur** son adresse IP. L'image
+   \`alpine\` a une commande \`ip\` :
 
 \`\`\`bash
-docker run -d --name pont-demo alpine sleep 300
-docker inspect pont-demo --format '{{.HostConfig.NetworkMode}}'
-docker inspect pont-demo --format '{{json .NetworkSettings.Networks}}'
+docker run --rm alpine ip -4 addr show eth0
 \`\`\`
 
-4. Supprime le conteneur :
+4. Relance un conteneur, et compare son adresse avec celle de l'étape 3. Les
+   deux sont-elles identiques ?
 
 \`\`\`bash
-docker rm -f pont-demo
+docker run --rm alpine sh -c 'hostname -i'
 \`\`\`
 
 **Ce que tu observes**
 
-- Trois réseaux existent toujours : \`bridge\`, \`host\` et \`none\`.
-- Le réseau \`bridge\` a un adresseage privé, typiquement en \`172.17.0.0/16\`, avec une passerelle et un serveur DNS interne.
-- Un conteneur lancé sans option réseau se branche sur \`bridge\`, et reçoit une adresse IP privée.
-- Ce réseau a **deux limites** qu'il faut connaître :
-  - sur le \`bridge\` par défaut, deux conteneurs ne se parlent **pas par leur nom** : le DNS interne de Docker ne fonctionne que sur les réseaux que tu crées toi-même (module 4, mission « Se parler par son nom ») ;
-  - l'accès à Internet passe par la passerelle, en \`NAT\` : la machine hôte est joignable sur \`172.17.0.1\`, mais elle est surtout là pour le routage sortant.
-
-**Ton mot de passe**
-
-Il n'est écrit nulle part : il sort de la réponse HTTP du port que tu as publié. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
-\`\`\`bash
-export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8081 && docker rm -f pont-8081
-\`\`\`
-
-La réponse HTTP affiche le mot de passe : envoie-le tel quel au portail.`,
-      hints: [
-        "La commande qui liste les objets réseau de Docker est la même que pour les conteneurs, avec un mot de plus.",
-        "Le réseau s'appelle bridge, et le paramètre `NetworkMode` d'un conteneur dit sur lequel il est branché.",
-      ],
-      solution: `\`\`\`bash
-docker network ls
-# -> NETWORK ID  NAME    DRIVER  SCOPE
-#    ee0b6fd     bridge  bridge  local
-#    1b6f19d     host    host    local
-#    6ab2c39     none    null    local
-
-docker network inspect bridge
-# -> un JSON avec la plage d'adresses (IPAM.Config), la passerelle, le serveur DNS interne
-#    et un membre "Options" qui contient notamment les regles de masquerade
-
-docker run -d --name pont-demo alpine sleep 300
-docker inspect pont-demo --format '{{.HostConfig.NetworkMode}}'
-# -> bridge
-
-docker inspect pont-demo --format '{{json .NetworkSettings.Networks}}'
-# -> {"bridge":{"IPAddress":"172.17.0.2","Gateway":"172.17.0.1", ...}}
-
-docker rm -f pont-demo
-\`\`\``,
-      teaches: ['docker network ls', 'docker network inspect', 'réseau bridge', 'NetworkMode', 'adresse IP privée'],
-      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8081 && docker rm -f pont-8081`,
-      checkpoint: "Tu as réussi quand `docker network ls` montre les trois réseaux bridge, host et none, et que tu sais dire sur quel réseau est branché un conteneur lancé sans option réseau.",
-    },
-
-    {
-      id: 'm4-02-traduire-un-port',
-      order: 2,
-      title: 'Traduire un port',
-      points: 25,
-      flag: 'FLAG{PORT_FLAG_HOST_GUEST_MAPPING}',
-      estMinutes: 15,
-      brief: `# Traduire un port
-
-Un conteneur a son propre monde : ses ports ne sont pas ceux de ta machine. Pour ouvrir une page web servie par un conteneur, il faut **traduire** un port de ta machine vers un port du conteneur.
-
-La syntaxe est toujours la même : \`-p PORT_HOTE:PORT_CONTENEUR\`.
-
-**Ta mission**
-
-1. Démarre un serveur web dans un conteneur, en arrière-plan, avec le port 9090 de ta machine relié au port 80 du conteneur :
-
-\`\`\`bash
-docker run -d -p 9090:80 --name pont-port nginx:alpine
-\`\`\`
-
-2. Regarde la colonne **PORTS** de \`docker ps\`, puis demande la traduction à Docker :
-
-\`\`\`bash
-docker ps
-docker port pont-port
-\`\`\`
-
-3. Teste la page servie :
-
-\`\`\`bash
-curl -I http://localhost:9090
-\`\`\`
-
-Tu dois lire une réponse \`HTTP/1.1 200 OK\`. Ouvre aussi \`http://localhost:9090\` dans ton navigateur.
-
-4. Coupe et relance le conteneur, puis teste de nouveau : la traduction a survécu au redémarrage.
-
-\`\`\`bash
-docker stop pont-port
-docker start pont-port
-curl -I http://localhost:9090
-\`\`\`
-
-5. Compare avec l'option \`-P\` (majuscule), qui publie automatiquement tous les ports déclarés par l'image :
-
-\`\`\`bash
-docker run -d -P --name pont-auto nginx:alpine
-docker port pont-auto
-\`\`\`
-
-Docker a choisi un port libre au hasard, souvent au-dessus de 30000. Récupère-le automatiquement, puis teste :
-
-\`\`\`bash
-PORT_AUTOMATIQUE=$(docker port pont-auto | sed 's/.*://')
-curl -I "http://localhost:$PORT_AUTOMATIQUE"
-\`\`\`
-
-6. Nettoie les deux conteneurs :
-
-\`\`\`bash
-docker stop pont-auto
-docker rm pont-auto pont-port
-\`\`\`
+- L'adresse du conteneur commence par \`172.\` — un préfixe **privé**, prévu pour
+  un réseau interne. Deux conteneurs du même réseau peuvent se joindre par leur
+  adresse.
+- Chaque conteneur a une adresse **différente**. L'IP d'un conteneur n'est pas
+  stable : elle change au redémarrage.
+- Le réseau \`bridge\` est celui par défaut. Tu ne l'as pas demandé, il est là.
 
 **Bon à retenir**
 
-- Le port de gauche est sur **ta** machine, celui de droite est **dans** le conteneur. L'ordre inverse ne fonctionne pas.
-- \`-p\` explicite un port, \`-P\` publie d'office tous les ports de l'image. En production, on préfère \`-p\` : on sait ce qu'on ouvre.
-- \`localhost\` fonctionne parce que Docker publie le port sur toutes les interfaces de ta machine.
+Une adresse \`172.17.\` sur ta machine n'est pas celle de ton conteneur — c'est
+celle d'un **autre** poste du réseau de l'établissement. Si deux machines se
+croient sur le même \`172.17.0.2\`, c'est normal : ils ont chacune leur propre
+Docker.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort de la réponse HTTP du port que tu as publié. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
+\`\`\`bash
+export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-01-le-reseau-par-defaut/raw?token=$ARENA_TOKEN"
+\`\`\``,
+      hints: [
+        "`docker network ls` liste trois réseaux par défaut : bridge, host et none. bridge est celui qui t'intéresse — les deux autres sont des modes particuliers.",
+        "`docker network inspect bridge` sort du JSON : cherche `Subnet`, `Gateway` et `Containers`. C'est là que tu vois qui est connecté.",
+        "`ip -4 addr show eth0` : `-4` pour IPv4, `addr show` pour les adresses, `eth0` pour l'interface réseau du conteneur. `hostname -i` fait la même chose en plus court.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm4-01-adresse',
+          kind: 'mcq',
+          prompt: 'Deux conteneurs lancés l\'un après l\'autre sur le réseau `bridge` ont-ils la même adresse IP ?',
+          choices: [
+            'Non : chaque conteneur reçoit une adresse différente du sous-réseau',
+            'Oui : l\'adresse du réseau est la même pour tous',
+            'Oui, si ils ont le même nom',
+            'Cela dépend du nombre de conteneurs déjà lancés',
+          ],
+          answer: 0,
+          explanation: "Chaque conteneur a sa adresse dans le sous-réseau du réseau. C'est ce qui rend l'IP inutilisable comme référence durable — d'où la résolution par nom, qu'on verra en quête 3.",
+          required: true,
+        },
+        {
+          id: 'm4-01-prefixe',
+          kind: 'mcq',
+          prompt: 'Un conteneur affiche `172.17.0.2`. Où se trouve cette machine ?',
+          choices: [
+            'Dans un réseau privé, propre au réseau Docker de ce poste',
+            'Sur Internet',
+            'Sur le réseau de l\'établissement, forcément',
+            'Sur la machine qui héberge le portail',
+          ],
+          answer: 0,
+          explanation: "Le préfixe 172.16 à 172.31 est réservé aux réseaux privés (RFC 1918). Deux postes ayant chacun leur Docker ont chacun un 172.17.0.2 : ce n'est pas une collision, c'est normal.",
+          required: true,
+        },
+        {
+          id: 'm4-01-bridge',
+          kind: 'boolean',
+          prompt: 'Il faut créer un réseau avant de lancer un conteneur pour qu\'il soit joignable.',
+          answer: false,
+          explanation: "Faux : le réseau `bridge` existe déjà et s'applique par défaut. Créer son propre réseau (quête 3) ne sert que quand on veut un cloisonnement ou des noms lisibles.",
+          required: false,
+        },
+      ],
+      solution: `\`\`\`bash
+docker network ls
+# -> NETWORK ID     NAME      DRIVER    SCOPE
+# -> a1b2c3d4e5f6   bridge    bridge    local
+# -> 9f8e7d6c5b4a   host      host      local
+# -> 0a1b2c3d4e5   none      null      local
 
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
+docker network inspect bridge
+# -> "Subnet": "172.17.0.0/16",
+# -> "Gateway": "172.17.0.1",
+# -> "Containers": {}
+
+docker run --rm alpine ip -4 addr show eth0
+# -> inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+
+docker run --rm alpine sh -c 'hostname -i'
+# -> 172.17.0.3
+\`\`\``,
+      teaches: ['docker network ls', 'docker network inspect', 'réseau bridge', 'adresse privée', 'hostname -i'],
+      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-01-le-reseau-par-defaut/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais dire où se trouve l'adresse \`172.17.0.2\`, et pourquoi elle ne peut pas servir de référence durable.",
+    },
+
+    {
+      id: 'm4-02-publier-un-port',
+      order: 2,
+      title: 'Publier un port',
+      points: 25,
+      flag: 'FLAG{PORT_PUBLISHED_VERDI_REACHABLE}',
+      estMinutes: 13,
+      brief: `# Publier un port
+
+Un conteneur joignable par les autres conteneurs, c'est bien. Mais l'administrateur
+de la librairie veut **tester depuis son navigateur**, et lui est sur la
+machine hôte. Il faut donc ouvrir un passage : la publication de port.
+
+**Ta mission**
+
+1. Lance le site de la librairie avec un port publié, et note bien l'ordre des
+   deux nombres :
+
+\`\`\`bash
+docker run -d --name verdi -p 8081:80 nginx:alpine
+\`\`\`
+
+2. Vérifie par trois chemins différents, et note lequel répond :
+
+\`\`\`bash
+curl -s -o /dev/null -w "localhost:8081 -> %{http_code}\\n" http://localhost:8081
+curl -s -o /dev/null -w "172.17.0.1 -> %{http_code}\\n" http://172.17.0.1:8081
+curl -s -o /dev/null -w "port 80 -> %{http_code}\\n" http://localhost:80
+\`\`\`
+
+3. Regarde ce que Docker a retenu, et compare avec ce que tu avais tapé :
+
+\`\`\`bash
+docker port verdi
+\`\`\`
+
+4. Inverse les deux nombres, juste pour voir ce qui se passe. Préviens-toi :
+   le lancement va peut-être échouer.
+
+\`\`\`bash
+docker rm -f verdi
+docker run -d --name verdi -p 80:8081 nginx:alpine
+curl -s -o /dev/null -w "8081 -> %{http_code}\\n" http://localhost:8081
+\`\`\`
+
+5. Nettoie et remets les choses dans l'ordre :
+
+\`\`\`bash
+docker rm -f verdi
+\`\`\`
+
+**Ce que tu observes**
+
+- Seul \`localhost:8081\` répond. Ni le port 80, ni l'adresse du réseau bridge :
+  la publication crée un point d'entrée **sur la machine**, pas dans le réseau
+  des conteneurs.
+- \`docker port verdi\` affiche \`80/tcp -> 0.0.0.0:8081\`. À gauche ce qu'écoute
+  dans le conteneur, à droite ce qui est atteint de l'extérieur. Docker a bien
+  compris \`hôte:conteneur\`.
+- À l'étape 4, \`curl localhost:8081\` ne répond plus : Nginx écoute sur 80 dans le
+  conteneur, et tu as publié le 8081 de la machine sur le **80 du conteneur**,
+  où personne n'écoute.
+
+**Le piège, en une phrase**
+
+\`hôte:conteneur\`, dans cet ordre. L'erreur inverse est la plus fréquente de
+tout Docker, et elle ne dit rien.
+
+**Bon à savoir**
+
+Par défaut \`-p 8081:80\` publie sur **toutes** les interfaces de la machine. Pour
+n'ouvrir que le localhost, on écrit \`-p 127.0.0.1:8081:80\` — utile quand le
+service n'a rien à faire sur le réseau de l'établissement.
+
+**Ton mot de passe**
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:9090 && docker rm -f pont-9090
-\`\`\`
-
-La réponse HTTP affiche le mot de passe : envoie-le tel quel au portail.`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-02-publier-un-port/raw?token=$ARENA_TOKEN"
+\`\`\``,
       hints: [
-        "L'option de publication s'écrit `-p`, suivie de deux nombres séparés par deux-points : celui de ta machine d'abord.",
-        "La colonne PORTS de `docker ps` affiche la traduction sous la forme 9090 vers 80, avec la flèche entre les deux.",
+        "Le format est toujours `hôte:conteneur`. Si Nginx ne répond pas, tu as probablement inversé les deux nombres.",
+        "`%{http_code}` est la façon de demander à `curl` d'afficher le code de réponse sans le corps. Pratique pour tester trois ports d'affilée.",
+        "`docker port` affiche `port_conteneur -> port_hôte`. L'ordre y est l'inverse de celui de la commande : c'est normal, Docker affiche ce qu'il a compris.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      // Pas de `recall` : les deux nombres sont écrits dans le brief. Le QCM
+      // porte la vraie difficulté, qui est l'ordre.
+      check: [
+        {
+          id: 'm4-02-ordre',
+          kind: 'mcq',
+          prompt: 'Un serveur web écoute sur 80 dans le conteneur. Comment le rendre accessible sur le port 9090 de la machine ?',
+          choices: ['`-p 9090:80`', '`-p 80:9090`', '`-p 8080:80`', '`--port 9090`'],
+          answer: 0,
+          explanation: "`hôte:conteneur`. Avec `-p 80:9090`, on publierait le port 80 de la machine sur le 9090 du conteneur, où Nginx n'écoute pas : rien ne répond, sans message d'erreur.",
+          required: true,
+        },
+        {
+          id: 'm4-02-portee',
+          kind: 'mcq',
+          prompt: 'Avec `-p 8081:80`, où le port 8081 est-il joignable ?',
+          choices: [
+            'Sur la machine hôte, depuis l\'extérieur',
+            'Uniquement depuis les autres conteneurs',
+            'Dans le réseau bridge, à l\'adresse 172.17.0.1',
+            'Nulle part : `-p` ne publie rien',
+          ],
+          answer: 0,
+          explanation: "`-p` crée une entrée sur la machine hôte. Les conteneurs se joignent entre eux par le réseau bridge sans aucune publication — c'est l'objet de la quête suivante.",
+          required: true,
+        },
       ],
       solution: `\`\`\`bash
-docker run -d -p 9090:80 --name pont-port nginx:alpine
-# -> identifiant du conteneur
+docker run -d --name verdi -p 8081:80 nginx:alpine
 
-docker ps
-# -> pont-port  Up ...  0.0.0.0:9090->80/tcp
-docker port pont-port
-# -> 80/tcp -> 0.0.0.0:9090
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8081
+# -> 200
+curl -s -o /dev/null -w "%{http_code}\\n" http://172.17.0.1:8081
+# -> 000        (rien : le port 8081 n'est pas sur le bridge)
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:80
+# -> 000
 
-curl -I http://localhost:9090
-# -> HTTP/1.1 200 OK
-#    Server: nginx/1.27.x
+docker port verdi
+# -> 80/tcp -> 0.0.0.0:8081
 
-docker stop pont-port
-docker start pont-port
-curl -I http://localhost:9090
-# -> HTTP/1.1 200 OK   (la traduction a ete conservee)
+docker rm -f verdi
+docker run -d --name verdi -p 80:8081 nginx:alpine
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8081
+# -> 000        (le 80 du conteneur n'a personne)
 
-docker run -d -P --name pont-auto nginx:alpine
-docker port pont-auto
-# -> 80/tcp -> 0.0.0.0:32768   (un port libre choisi par Docker)
-
-PORT_AUTOMATIQUE=$(docker port pont-auto | sed 's/.*://')
-curl -I "http://localhost:$PORT_AUTOMATIQUE"
-# -> HTTP/1.1 200 OK
-
-docker stop pont-auto
-docker rm pont-auto pont-port
+docker rm -f verdi
 \`\`\``,
-      teaches: ['option -p', 'option -P', 'docker port', 'colonne PORTS', 'curl -I'],
+      teaches: ['-p', 'hôte:conteneur', 'docker port', 'codes curl', 'publication locale'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:9090 && docker rm -f pont-9090`,
-      checkpoint: "Tu as réussi quand `curl -I http://localhost:9090` a répondu `200 OK`, et quand `docker port pont-port` t'a montré la traduction 9090 vers 80.",
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-02-publier-un-port/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand, devant un site qui ne répond pas sur le bon port, tu sais dire en une phrase quel nombre il faut inverser.",
     },
 
     {
@@ -231,225 +299,315 @@ curl -s --retry 5 --retry-delay 1 http://SERVER_IP:9090 && docker rm -f pont-909
       order: 3,
       title: 'Se parler par son nom',
       points: 50,
-      flag: 'FLAG{DOCKER_DNS_RESOLVES_BY_NAME}',
-      estMinutes: 20,
+      flag: 'FLAG{DNS_INTERNAL_BY_CONTAINER_NAME}',
+      estMinutes: 16,
       brief: `# Se parler par son nom
 
-Sur un réseau que **tu** crées, Docker installe un petit serveur DNS : un conteneur trouve un autre conteneur par son nom. Fini les adresses IP à deviner.
+La librairie a deux services : le site, et une base qui garde les commandes des
+libraires. Sur la machine hôte, il faudrait publier des ports, se souvenir des
+adresses IP, et les changer à chaque redémarrage.
+
+Docker a mieux. Sur un réseau qu'on lui donne, les conteneurs se trouvent
+**par leur nom**.
 
 **Ta mission**
 
-1. Crée ton propre réseau :
+1. Crée un réseau nommé pour la librairie. Sur un réseau qu'on crée soi-même,
+   Docker installe un résolveur de noms :
 
 \`\`\`bash
-docker network create arena-net
+docker network create reseau-verdi
+docker network ls
 \`\`\`
 
-2. Démarre un serveur web dessus, avec un nom reconnaissable :
+2. Lance la base de données, sans publier de port. \`redis\` est une base
+   fréquemment utilisée, son image est petite :
 
 \`\`\`bash
-docker run -d --name arena-web --network arena-net nginx:alpine
+docker run -d --name verdi-db --network reseau-verdi redis:alpine
 \`\`\`
 
-3. Fais-lui servir une page reconnaissable, puis interroge-le **depuis un autre conteneur, par son nom** :
+3. Vérifie qu'aucun port n'a été publié, et regarde son adresse **dans son
+   réseau** :
 
 \`\`\`bash
-docker exec arena-web sh -c 'echo "page servie par arena-web" > /usr/share/nginx/html/index.html'
-docker run --rm --network arena-net alpine wget -qO- http://arena-web/
+docker port verdi-db
+docker inspect verdi-db --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
 \`\`\`
 
-Tu dois lire \`page servie par arena-web\` : le second conteneur a trouvé \`arena-web\` sans connaître son adresse IP.
-
-4. Confirme que le nom est bien résolu en adresse IP :
+4. **Le test décisif.** Lance un conteneur sur le même réseau et demande-lui de
+   joindre la base **par son nom** :
 
 \`\`\`bash
-docker run --rm --network arena-net alpine ping -c 2 arena-web
+docker run --rm --network reseau-verdi alpine sh -c 'ping -c 2 verdi-db'
 \`\`\`
 
-5. Ajoute un deuxième service, une base de données, et interroge-la par son nom :
+5. Vérifie que le nom est bien résolu, en lisant le DNS plutôt qu'en devinant :
 
 \`\`\`bash
-docker run -d --name arena-cache --network arena-net redis:alpine
-docker run --rm --network arena-net redis:alpine redis-cli -h arena-cache ping
+docker run --rm --network reseau-verdi alpine nslookup verdi-db
 \`\`\`
 
-Tu dois lire \`PONG\`.
-
-6. Regarde la liste des membres du réseau :
+6. Cherche ce qui échoue. Le site et la base sont deux conteneurs séparés : le
+   site, lancé sans \`--network\`, n'est pas sur \`reseau-verdi\` :
 
 \`\`\`bash
-docker network inspect arena-net
+docker run --rm alpine nslookup verdi-db
 \`\`\`
 
-7. Expérience attendue : depuis le réseau par défaut, le nom n'existe plus.
+**Ce que tu observes**
 
-\`\`\`bash
-docker run --rm alpine wget -qO- http://arena-web/
-\`\`\`
+- Étape 4 : \`verdi-db\` répond. Aucun port publié, aucune IP à connaître.
+- Étape 5 : la résolution renvoie l'adresse de la base, confirmée par
+  \`nslookup\`.
+- Étape 6 : la même commande **échoue** hors du réseau. Le nom n'existe que pour
+  les conteneurs du même réseau.
 
-Cette commande **échoue**, et c'est le but : tu dois lire \`wget: bad address 'arena-web'\`. Le réseau \`bridge\` par défaut ne fournit pas ce DNS.
+**Ce que ça change**
 
-8. Nettoie tout :
+Un nom qui ne marche que dans un réseau est une **frontière**. Les services de la
+librairie se parlent par leur nom, et personne ne peut les atteindre depuis la
+machine sans publier un port. C'est le principe du « réseau privé par défaut » :
+on n'expose que ce qui a besoin de l'être.
 
-\`\`\`bash
-docker stop arena-web arena-cache
-docker rm arena-web arena-cache
-docker network rm arena-net
-\`\`\`
+**Attention aux vieux noms**
 
-**Bon à retenir**
-
-- L'option \`--network\` attache le conteneur au bon réseau dès sa création.
-- Sur un réseau personnalisé, le nom du conteneur est directement utilisable comme adresse web ou comme hôte de base de données.
-- Un conteneur ne peut être détaché d'un réseau personnalisé une fois créé : il faut en créer un autre.
+Ces résolutions par nom ne fonctionnent que sur les réseaux que **vous** créez. Sur
+le réseau \`bridge\` par défaut, une seule entrée DNS : celle du gateway. Un nom
+comme \`verdi-db\` n'y fonctionnera pas, même si le conteneur s'appelle ainsi.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort de la réponse HTTP du port que tu as publié. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8082 && docker rm -f pont-8082
-\`\`\`
-
-La réponse HTTP affiche le mot de passe : envoie-le tel quel au portail.`,
+docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
+\`\`\``,
       hints: [
-        "La commande pour créer un réseau prend un seul argument : le nom du réseau.",
-        "Pour demander une page web depuis un conteneur qui n'a pas curl, l'image alpine contient l'outil `wget`.",
+        "Le réseau doit être **créé** avant. Sur `bridge`, le résolveur de noms n'installe qu'une entrée : celle du gateway.",
+        "`docker run --network reseau-verdi` est l'option qui compte. Sans elle, le conteneur atterrit sur `bridge` et ne voit pas `verdi-db`.",
+        "`nslookup` demande au résolveur. `ping` suppose que la cible réponde ; `nslookup` marche même si le service est arrêté.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      // Pas de `recall` non plus : `--network` figure dans les commandes.
+      check: [
+        {
+          id: 'm4-03-dns',
+          kind: 'mcq',
+          prompt: 'Un conteneur nommé `verdi-db` est joignable par `ping verdi-db`. Depuis où ?',
+          choices: [
+            'Depuis n\'importe quel conteneur du même réseau',
+            'Depuis n\'importe quelle machine du réseau de l\'établissement',
+            'Depuis la machine hôte, sans configurer de port',
+            'Depuis n\'importe quel conteneur, quel que soit son réseau',
+          ],
+          answer: 0,
+          explanation: "C'est le principe : le nom est une frontière. Il n'existe que dans le réseau où le conteneur est, et c'est exactement ce qui rend un réseau privé sûr.",
+          required: true,
+        },
+        {
+          id: 'm4-03-bridge-dns',
+          kind: 'boolean',
+          prompt: 'La résolution par nom de conteneur fonctionne aussi sur le réseau `bridge` par défaut.',
+          answer: false,
+          explanation: "Faux, et c'est une surprise courante. Sur `bridge`, le résolveur ne connaît que le gateway. Pour avoir des noms, il faut créer son propre réseau — c'est l'objet de cette quête.",
+          required: true,
+        },
       ],
       solution: `\`\`\`bash
-docker network create arena-net
-# -> identifiant du nouveau reseau bridge
+docker network create reseau-verdi
+# -> Network ID a1b2c3d4e5f6…   (le nom lisible suffit)
 
-docker run -d --name arena-web --network arena-net nginx:alpine
+docker run -d --name verdi-db --network reseau-verdi redis:alpine
+docker port verdi-db
+# -> (rien : aucun port publié)
+docker inspect verdi-db --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+# -> 172.18.0.2
 
-docker exec arena-web sh -c 'echo "page servie par arena-web" > /usr/share/nginx/html/index.html'
-docker run --rm --network arena-net alpine wget -qO- http://arena-web/
-# -> page servie par arena-web   (le nom a ete resolu automatiquement)
+docker run --rm --network reseau-verdi alpine sh -c 'ping -c 2 verdi-db'
+# -> PING verdi-db (172.18.0.2): 56 data bytes
+# -> 64 bytes from 172.18.0.2: seq=0 ttl=64 time=0.096 ms
 
-docker run --rm --network arena-net alpine ping -c 2 arena-web
-# -> PING arena-web (172.26.0.2): 56 data bytes ... 0% packet loss
+docker run --rm --network reseau-verdi alpine nslookup verdi-db
+# -> Name:    verdi-db
+# -> Address: 172.18.0.2
 
-docker run -d --name arena-cache --network arena-net redis:alpine
-docker run --rm --network arena-net redis:alpine redis-cli -h arena-cache ping
-# -> PONG
+docker run --rm alpine nslookup verdi-db
+# -> nslookup: can't resolve 'verdi-db'   (hors du réseau, rien ne résout)
 
-docker network inspect arena-net
-# -> dans "Containers" : arena-cache et arena-web avec leur adresse IP
-
-docker run --rm alpine wget -qO- http://arena-web/
-# -> wget: bad address 'arena-web'   (echec attendu : pas de DNS sur le bridge par defaut)
-
-docker stop arena-web arena-cache
-docker rm arena-web arena-cache
-docker network rm arena-net
+docker rm -f verdi-db
+docker network rm reseau-verdi
 \`\`\``,
-      teaches: ['docker network create', 'option --network', 'résolution DNS interne', 'wget', 'redis-cli'],
+      teaches: ['docker network create', '--network', 'résolution DNS interne', 'nslookup', 'réseau privé'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8082 && docker rm -f pont-8082`,
-      checkpoint: "Tu as réussi quand `wget -qO- http://arena-web/` a affiché la page servie par `arena-web` depuis un conteneur du réseau `arena-net`, quand la même commande a échoué sur le réseau par défaut, et quand `curl` a affiché ton mot de passe sur le port publié.",
+docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais pourquoi un nom de conteneur ne se résout pas hors de son réseau — et pourquoi c'est une bonne nouvelle.",
     },
 
     {
-      id: 'm4-04-port-master',
+      id: 'm4-04-deux-services',
       order: 4,
-      title: 'Port Master',
+      title: 'Deux services, une machine',
       points: 300,
-      flag: 'FLAG{PORT_MAPPING_WEB_EXPERT_8080}',
+      flag: 'FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}',
       estMinutes: 22,
-      brief: `# Mission phare — Port Master
+      brief: `# Deux services, une machine
 
-Objectif : exécuter un conteneur en arrière-plan et router les connexions jusqu'à lui avec une traduction de port.
+Le jalon de la migration : le site de la librairie et sa base tournent sur la
+même machine, **sans que la base soit accessible de l'extérieur**. C'est le
+déploiement qu'on veut au bout de l'atelier.
 
-**Mission**
+**Ta mission**
 
-1. Démarre un serveur Nginx en arrière-plan, en redirigeant le port 8080 de ta machine vers le port 80 du conteneur :
+1. Prépare le terrain : un réseau pour la librairie, une base dedans, aucun port
+   publié pour elle :
 
 \`\`\`bash
-docker run -d -p 8080:80 --name mission-webserver nginx:alpine
+docker network create reseau-verdi 2>/dev/null || true
+docker run -d --name verdi-db --network reseau-verdi redis:alpine
 \`\`\`
 
-2. Vérifie que le conteneur tourne bien et que la traduction est en place :
+2. Lance le site, sur **le même** réseau, et publie son port. C'est le site qui
+   est public, la base ne l'est pas :
 
 \`\`\`bash
+docker run -d --name verdi --network reseau-verdi -p 8080:80 nginx:alpine
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8080
+\`\`\`
+
+3. Vérifie que le site voit la base par son nom, **depuis l'intérieur du
+   conteneur du site** :
+
+\`\`\`bash
+docker exec verdi sh -c 'getent hosts verdi-db'
+\`\`\`
+
+4. Vérifie l'inverse : la base n'a pas de port, elle n'est donc joignable que
+   depuis le réseau :
+
+\`\`\`bash
+curl -s -m 3 -o /dev/null -w "%{http_code}\\n" http://localhost:6379
+\`\`\`
+
+Le code \`000\` est la bonne nouvelle.
+
+5. **Le test d'indépendance.** Supprime le site, et vérifie que la base
+   continue de vivre :
+
+\`\`\`bash
+docker rm -f verdi
 docker ps
 \`\`\`
 
-La colonne **PORTS** doit afficher \`0.0.0.0:8080->80/tcp\`.
+Puis recrée le site et vérifie qu'il retrouve la base par son nom. Rien à
+reconfigurer.
 
-3. Teste l'accès web avec \`curl\` ou ton navigateur, sur \`http://localhost:8080\` :
+6. Compare ta pile à ce que tu avais avant la migration : un serveur,
+   un processus. Combien de ports sont publiés ? Combien de conteneurs ?
 
-\`\`\`bash
-curl -I http://localhost:8080
-\`\`\`
+**Ce que tu observes**
 
-4. Défi : modifie **en direct** la page servie, sans arrêter le conteneur, grâce à \`docker exec\`. Pose d'abord ton jeton d'équipe — celui affiché à l'inscription — avec la commande \`export ARENA_TOKEN='dq_…'\`, puis :
+- Étape 3 : \`verdi-db\` se résout **depuis le conteneur du site**.
+- Étape 4 : le port 6379 de la machine est fermé. La base n'a aucune entrée
+  depuis l'extérieur.
+- Étape 5 : supprimer le site ne touche pas à la base. Ils sont indépendants —
+  c'est tout l'intérêt.
 
-\`\`\`bash
-docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
-\`\`\`
+**Ce que ça change en exploitation**
 
-5. Vérifie la modification, toujours sans redémarrer quoi que ce soit :
+Ce schéma a une conséquence qu'il faut savoir nommer : si la base tombe, le site
+reste debout mais ne fonctionne plus. On **peut** redémarrer un conteneur sans
+toucher à l'autre. Sur une installation V1 où tout tournait dans le même
+processus, un plantage emportait tout.
 
-\`\`\`bash
-curl http://localhost:8080
-\`\`\`
+La consequence à dire au directeur : la base est un **point de défaillance
+unique**, et c'est la prochaine étape du chantier — la sauvegarder.
 
-Tu dois lire ton mot de passe, servi par le conteneur. Remplace SERVER_IP par l'adresse du portail.
+**Ce que tu observes aussi**
 
-6. Nettoie le conteneur :
-
-\`\`\`bash
-docker stop mission-webserver && docker rm mission-webserver
-\`\`\`
+Les conteneurs de cette pile se parlent par leur nom, jamais par une adresse IP.
+C'est la seule chose à retenir de l'atelier : une IP change, un nom non.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort de la réponse HTTP du port que tu as publié. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8080 && docker rm -f mission-webserver
-\`\`\`
-
-La réponse HTTP affiche le mot de passe : envoie-le tel quel au portail.`,
+docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"
+\`\`\``,
       hints: [
-        "Reprends le duo `-d` (arrière-plan) et `-p 8080:80` déjà utilisé à la quête précédente, avec un nom de conteneur imposé.",
-        "Le serveur web nginx sert ses fichiers dans un dossier précis de l'image. C'est là qu'il faut écrire.",
-        "`wget -qO fichier adresse` va chercher une page et l'écrit dans un fichier : le même geste que `echo`, sans guillemet à oublier.",
+        "Les deux conteneurs doivent être sur le **même** réseau. Si le site répond mais ne trouve pas la base, c'est qu'il est resté sur `bridge`.",
+        "`docker exec` entre dans un conteneur en marche. La base de résolution y est `getent hosts`, disponible sans installer quoi que ce soit.",
+        "Un `curl` qui expire affiche `000`. C'est le code de retour quand aucune connexion n'a pu être établie — donc le port est bien fermé.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm4-04-independance',
+          kind: 'mcq',
+          prompt: 'Tu supprimes le conteneur du site. Que devient la base ?',
+          choices: [
+            'Elle continue de tourner : les conteneurs sont indépendants',
+            'Elle s\'arrête : elle dépend du site',
+            'Elle est supprimée avec lui',
+            'Elle redémarre sur un autre port',
+          ],
+          answer: 0,
+          explanation: "Aucune dépendance de cycle de vie entre conteneurs : ils partagent un réseau, pas un destin. C'est l'inverse d'une installation où tout tournait dans un processus unique.",
+          required: true,
+        },
+        {
+          id: 'm4-04-exposition',
+          kind: 'mcq',
+          prompt: 'Quel conteneur de la pile est accessible depuis l\'extérieur ?',
+          choices: [
+            'Seulement le site : c\'est le seul à avoir un port publié',
+            'Les deux : ils sont sur le même réseau',
+            'La base : elle a un port 6379',
+            'Aucun : la pile est privée',
+          ],
+          answer: 0,
+          explanation: "Le site a `-p 8080:80`, la base n'a rien. Le réseau privé protège la base sans configuration supplémentaire : c'est le principe « réseau privé par défaut ».",
+          required: true,
+        },
+        {
+          id: 'm4-04-ssp',
+          kind: 'boolean',
+          prompt: 'Dans cette pile, la base de données est un point de défaillance unique : si elle tombe, le site ne peut plus rien faire.',
+          answer: true,
+          explanation: "Vrai — et c'est la prochaine étape du chantier. On le sait parce qu'on vient de voir que les deux conteneurs sont indépendants : la panne de l'un n'arrête pas l'autre, mais elle le rend inutile.",
+          required: true,
+        },
       ],
       solution: `\`\`\`bash
-docker run -d -p 8080:80 --name mission-webserver nginx:alpine
-# -> identifiant du conteneur
+docker network create reseau-verdi
+docker run -d --name verdi-db --network reseau-verdi redis:alpine
+docker run -d --name verdi --network reseau-verdi -p 8080:80 nginx:alpine
 
+curl -s -o /dev/null -w "%{http_code}\\n" http://localhost:8080
+# -> 200
+
+docker exec verdi sh -c 'getent hosts verdi-db'
+# -> 172.18.0.2      verdi-db
+
+curl -s -m 3 -o /dev/null -w "%{http_code}\\n" http://localhost:6379
+# -> 000             (fermé, c'est voulu)
+
+docker rm -f verdi
 docker ps
-# -> mission-webserver  Up ...  0.0.0.0:8080->80/tcp
+# -> CONTAINER ID  IMAGE           STATUS    NAMES
+# -> 9a8b7c6d5e4f   redis:alpine   Up 1 min   verdi-db
 
-curl -I http://localhost:8080
-# -> HTTP/1.1 200 OK
-#    Server: nginx/1.27.x
+# Le site se recrée et retrouve la base, sans rien reconfigurer :
+docker run -d --name verdi --network reseau-verdi -p 8080:80 nginx:alpine
+docker exec verdi sh -c 'getent hosts verdi-db'
+# -> 172.18.0.2      verdi-db
 
-docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
-curl http://localhost:8080
-# -> FLAG{...}    le mot de passe de TON equipe, servi par le conteneur
-
-docker stop mission-webserver && docker rm mission-webserver
-# -> mission-webserver
-#    mission-webserver
-# A envoyer au portail : le mot de passe affiche ci-dessus
+docker rm -f verdi verdi-db
+docker network rm reseau-verdi
 \`\`\``,
-      teaches: ['déploiement web', 'traduction de port 8080', 'docker exec en production', 'nginx'],
+      teaches: ['pile de conteneurs', 'réseau privé', 'port unique publié', 'indépendance', 'point de défaillance'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
-curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8080 && docker rm -f mission-webserver`,
-      checkpoint: "Tu as réussi quand `curl http://localhost:8080` affiche le mot de passe sans qu'aucun conteneur n'ait été redémarré, puis quand le conteneur a été supprimé.",
+docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais expliquer à la direction pourquoi le port de la base est fermé, et ce qu'il faudrait mettre en place pour que sa panne n'arrête pas le site.",
     },
   ],
 };
