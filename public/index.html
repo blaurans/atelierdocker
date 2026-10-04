@@ -74,8 +74,8 @@
       <form class="reg-row" id="regForm">
         <input id="inTeam" type="text" placeholder="Pseudo ou nom d'équipe" autocomplete="off" required minlength="2" maxlength="32">
         <select id="inMode">
-          <option value="competitive">⚡ Compétitif — points + vitesse</option>
-          <option value="normal">🧘 Normal — sans pression</option>
+          <option value="competitive">⚡ Challenge — indices payants</option>
+          <option value="normal">🧘 Sans stress — indices gratuits</option>
         </select>
         <button class="btn btn-primary" type="submit">Rejoindre le lab</button>
       </form>
@@ -153,8 +153,8 @@
                   title="Copier mon jeton d'API">…</button>
         </div>
         <div class="play-stats">
-          <div class="stat" id="statScore" hidden><span class="stat-k">Score</span><span class="stat-v" id="scoreVal">0</span></div>
-          <div class="stat" id="statRank" hidden><span class="stat-k">Rang</span><span class="stat-v" id="rankVal">—</span></div>
+          <div class="stat" id="statLevel"><span class="stat-k">Niveau</span><span class="stat-v" id="levelVal">—</span></div>
+          <div class="stat" id="statAutonomy"><span class="stat-k">Autonomie</span><span class="stat-v" id="autonomyVal">—</span></div>
           <div class="stat" id="statProgress"><span class="stat-k">Progression</span><span class="stat-v" id="progressVal">0/0</span></div>
           <button class="btn btn-ghost btn-sm" id="btnHelp">? Aide</button>
           <button class="btn btn-ghost btn-sm" id="btnQuit">Quitter</button>

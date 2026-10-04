@@ -89,18 +89,41 @@ test('le verrouillage n\'est qu\'un guidage, activé par l\'enseignant', () => {
 
 test('le plan de progression reste cohérent avec le contenu', () => {
   // Le client compte les modules et les quêtes à partir de la réponse serveur.
-  const modules = pack.modules.length;
-  const quetes = pack.totalQuests;
   assert.match(clientJs, /state\.pack\.modules/, 'le client doit parcourir modules');
   assert.match(clientJs, /modules\.flatMap\(\(m\) => m\.quests\)/,
     'le client doit aplatir modules → quêtes');
-  assert.ok(modules === 7 && quetes === 26);
 });
 
-test('le mode normal ne fait apparaître ni score ni rang', () => {
-  // Le client masque les blocs quand le joueur n'est pas en compétitif.
-  assert.ok(clientJs.includes("$('#statScore').hidden = !competitive"));
-  assert.ok(clientJs.includes("$('#statRank').hidden = !competitive"));
+test('le client ne fige aucun nombre de modules ni de quêtes', () => {
+  // Un `7` ou un `26` écrit en dur dans le client devient faux dès qu'on ajoute
+  // un atelier — et le bug est invisible jusqu'au premier cours. Le compte
+  // vient toujours de la réponse serveur ; ce test verrouille qu'il n'y a pas
+  // de constanteEquivalent.
+  const client = clientJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const interdits = [
+    [/\b7\s*ateliers?\b/i, 'un nombre d\'ateliers en dur'],
+    [/\b7\s*modules?\b/i, 'un nombre de modules en dur'],
+    [/\b26\s*qu[eê]tes?\b/i, 'un nombre de quêtes en dur'],
+    [/\b2800\b/, 'un total de points en dur'],
+  ];
+  for (const [motif, quoi] of interdits) {
+    assert.doesNotMatch(client, motif, `${quoi} ne doit pas figurer dans le client`);
+  }
+});
+
+test('le score et le rang ont disparu, pas seulement masqués', () => {
+  // Masquer un bloc de score le laisserait dans le HTML : un élève qui lit la
+  // page verrait « Score » dans le code, et un ancien client le chercherait.
+  // Les deux blocs sont remplacés par le niveau et l'autonomie.
+  for (const [src, quoi] of [[clientJs, 'le client'], [html, 'le HTML']]) {
+    for (const id of ['statScore', 'statRank', 'scoreVal', 'rankVal']) {
+      assert.doesNotMatch(src, new RegExp(id), `${quoi} ne doit plus mentionner ${id}`);
+    }
+  }
+  assert.match(html, /id="statLevel"/, 'le niveau prend la place du score');
+  assert.match(html, /id="statAutonomy"/, 'l\'autonomie prend la place du rang');
+  assert.match(clientJs, /#levelVal/, 'le client doit remplir le niveau');
+  assert.match(clientJs, /#autonomyVal/, 'le client doit remplir l\'autonomie');
 });
 
 test('le portail se reconnecte au flux SSE si la coupure passe', () => {

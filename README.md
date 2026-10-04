@@ -261,7 +261,12 @@ chaque question compte ses tentatives.
 
 ## Prérequis côté étudiant
 
-Docker doit tourner sur le poste. C'est la seule condition.
+**Atelier 1 installe Docker.** L'élève commence sur une VM Ubuntu Server vierge
+et finit l'atelier avec `docker version` qui répond. Il n'y a donc aucun
+prérequis — mais il faut que la VM ait `sudo`, un accès à `apt` et à Internet,
+sans quoi l'installation de l'atelier 2 échoue.
+
+Les ateliers suivants supposent que celui-ci a été fait.
 
 - Linux :Docker Engine
 - Windows / macOS : Docker Desktop, ou Docker Engine via WSL2
@@ -466,7 +471,7 @@ docker compose up -d
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 129 tests
+npm test                  # 130 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -492,6 +497,27 @@ Le serveur **refuse de démarrer** si le contenu est incohérent : flag dupliqu�
 `order` en doublon, dernier indice payant, HTML glissé dans un énoncé, réponse
 recopiée de l'énoncé. L'erreur dit précisément quoi corriger.
 
+### Ce que l'atelier 1 montre pour les suivants
+
+L'atelier 1 est le seul entièrement écrit dans le nouveau format, et il sert de
+modèle. Trois règles en sont sorties, toutes vérifiées par le validateur :
+
+**1. Aucun artefact mort.** Chaque commande sert la mission suivante. L'atelier 1
+diagnostique la machine, le 2 installe Docker, le 3 vérifie qu'il répond, le 4
+diagnostique l'échec le plus courant. Rien n'y est là pour « faire une
+commande ».
+
+**2. Aucun `recall` quand la commande est déjà dans l'énoncé.** Le réflexe ne
+vaut que si l'élève doit *retrouver*. Sur les quatre quêtes de l'atelier 1, il
+n'y en a qu'un — en quête 3, où la lettre « all » n'est volontairement pas
+donnée. Le validateur refuse d'ailleurs un `recall` dont la réponse figure dans
+le brief, et il a raison.
+
+**3. Le mot de passe se récupère en `curl` avant l'installation.** Les quêtes 1
+et 2 ont lieu avant que Docker existe sur la machine ; elles utilisent donc
+`curl`, plus simple, qui apprend au passage que le mot de passe est une URL.
+C'est aussi pour ça que l'attente du module 1 accepte `curl`.
+
 ### Structure
 
 ```
@@ -507,7 +533,7 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   129 tests : maîtrise, migration, API, rendu, contrat,
+test/                   130 tests : maîtrise, migration, API, rendu, contrat,
                         invariants, qualité du contenu, plafonds de débit
 docs/CONTRACTS.md       contrat de données et d'API
 ```

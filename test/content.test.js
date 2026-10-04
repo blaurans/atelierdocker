@@ -88,8 +88,12 @@ test('les six missions historiques gardent leurs techniques', () => {
 test('chaque module récupère son secret par sa propre technique', () => {
   // Le point pédagogique : on cherche le mot de passe avec la commande que
   // le module vient d'enseigner, pas avec une commande générique.
+  // L'atelier 1 est particulier : les deux premières quêtes ont lieu AVANT
+  // l'installation, donc `curl` — la seule façon de joindre le portail quand
+  // Docker n'existe pas encore sur le poste. C'est aussi plus simple, et ça
+  // n'enseigne rien de faux : l'élève voit que le mot de passe est une URL.
   const attendus = {
-    1: /cat\b|\/etc\//,                    // lire un fichier dans un conteneur
+    1: /curl|docker\s+run/,                // avant installation, puis après
     2: /docker\s+run/,                     // la sortie d'un conteneur lancé
     3: /docker\s+(exec|cp)\b/,             // entrer dans un conteneur en marche
     4: /curl|wget|ports?\b/,               // requête HTTP vers un port publié

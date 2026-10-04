@@ -404,7 +404,7 @@ function showPlay() {
 document.querySelectorAll('.mode').forEach((btn) => {
   btn.addEventListener('click', () => {
     state.mode = btn.dataset.mode;
-    const labels = { competitive: '⚡ Compétitif', normal: '🧘 Normal' };
+    const labels = { competitive: '⚡ Challenge', normal: '🧘 Sans stress' };
     $('#gateModeLabel').textContent = labels[state.mode];
     $('#gateForm').hidden = false;
     $('#gSecret').hidden = state.mode !== 'competitive';
@@ -454,7 +454,8 @@ async function bootPlayer() {
 
   $('#teamName').textContent = state.me.team;
   const competitive = state.me.mode === 'competitive';
-  $('#modeChip').textContent = competitive ? '⚡ Compétitif' : '🧘 Normal';
+  $('#modeChip').textContent = state.me.mode_label
+    ?? (competitive ? '⚡ Challenge' : '🧘 Sans stress');
   $('#modeChip').className = `chip ${competitive ? 'chip-amber' : 'chip-emerald'}`;
   // Heure d'inscription : utile en fin de séance pour vérifier d'un coup
   // d'œil que l'équipe a bien été enregistrée avant de commencer.
@@ -463,23 +464,57 @@ async function bootPlayer() {
     : '';
   renderToken();
 
-  $('#statScore').hidden = !competitive;
-  $('#statRank').hidden = !competitive;
-
   renderHeader();
   renderMap();
   renderCurrent();
   await loadCommands();
 }
 
+/**
+ * Le bilan affiché après une validation.
+ *
+ * Pas de score : il n'y en a plus. Ce que l'élève veut savoir, c'est si cette
+ * quête compte pour son autonomie — parce que c'est la seule chose qui ne
+ * dépende que de lui.
+ */
+function renderValidationReport(out, res) {
+  const r = res.quest_result ?? {};
+  const bits = [res.message ?? 'Quête validée.'];
+
+  if (r.autonomous) {
+    bits.push('Elle compte pour ton autonomie : tu l\'as réussie seul.');
+  } else if (r.hints_used) {
+    bits.push(`Elle compte pour ta progression, pas pour ton autonomie : `
+      + `${r.hints_used} indice${r.hints_used > 1 ? 's' : ''} demandé${r.hints_used > 1 ? 's' : ''}.`);
+  }
+
+  const m = res.mastery;
+  if (m) {
+    bits.push(`Autonomie : ${Math.round(m.autonomy_ratio * 100)} % · `
+      + `niveau ${m.level.name}.`);
+  }
+
+  out.className = 'submit-msg submit-ok';
+  out.textContent = bits.join(' ');
+}
+
 function renderHeader() {
   const { me } = state;
-  const competitive = me.mode === 'competitive';
-  if (competitive) {
-    $('#scoreVal').textContent = me.score ?? 0;
-    $('#rankVal').textContent = me.rank ? `#${me.rank}` : '—';
-  }
   $('#progressVal').textContent = me.progress;
+
+  // Ni score ni rang : à la place, ce que l'élève a réellement fait — son
+  // niveau et sa part de quêtes réussies sans indice. L'autonomie est le
+  // signal le plus important : c'est le seul qui ne dépende que de lui.
+  //
+  // Ces deux valeurs sont ici, et pas dans `bootPlayer`, parce que c'est cette
+  // fonction que `refresh()` appelle après chaque validation. Les mettre à
+  // l'inscription seulement affichait un niveau figé pendant toute la séance —
+  // l'élève validait une quête et son autonomie ne bougeait pas.
+  const m = state.me.mastery ?? {};
+  $('#levelVal').textContent = m.level?.name ?? '—';
+  $('#autonomyVal').textContent = m.autonomy_ratio != null
+    ? `${Math.round(m.autonomy_ratio * 100)} %`
+    : '—';
 
   renderHistory();
 
@@ -848,6 +883,11 @@ function buildSubmitBox(q) {
         state.lastSuccess = res;
         input.value = '';
         await refresh();
+        // `refresh()` relit `state.me` depuis le serveur, donc l'autonomie
+        // affichée est la bonne. Mais le message de retour dit ce que CETTE
+        // quête a rapporté — « avec 1 indice » — et c'est l'information que
+        // l'élève veut voir avant de passer à la suivante.
+        renderValidationReport(out, res);
       }
     } catch (err) {
       out.className = 'submit-msg submit-err';
@@ -961,6 +1001,7 @@ async function refresh() {
   state.pack = await api('/api/quests');
   state.me = await api('/api/me');
   $('#teamName').textContent = state.me.team;
+  renderHeader();
   renderMap();
   renderHistory();
   renderCurrent();

@@ -66,12 +66,18 @@ const questPayload = (completed = []) => ({
   })),
 });
 
-const mePayload = (completed = []) => ({
-  team: 'Testeur', mode: 'competitive', mode_label: 'Challenge',
+const mePayload = (completed = [], mode = 'competitive') => ({
+  team: 'Testeur', mode,
+  // Le libellé vient du serveur : c'est lui qui décide de « Challenge » ou
+  // « Sans stress », le client ne fait que l'afficher.
+  mode_label: mode === 'competitive' ? 'Challenge' : 'Sans stress',
   mastery: {
     done: completed.length, total_quests: pack.totalQuests,
     autonomous: completed.length, understood: completed.length,
-    reflex: completed.length, hints_used: 0,
+    reflex: completed.length,
+    // Le stub suppose une promotion où chaque quête validée l'a été sans
+    // indice. Le test qui prend un indice le remet explicitement à 1.
+    hints_used: 0,
     progress_ratio: completed.length / pack.totalQuests,
     autonomy_ratio: completed.length ? 1 : 0,
     comprehension_ratio: completed.length ? 1 : 0,
@@ -342,9 +348,12 @@ test('le parcours se construit depuis les données du serveur', async () => {
 
   assert.equal(text('#teamName'), 'Testeur');
   assert.equal(text('#progressVal'), `0/${pack.totalQuests}`);
-  assert.equal(text('#scoreVal'), '0');
+  // Ni score ni rang : les deux blocs ont été remplacés par le niveau et
+  // l'autonomie.
+  assert.equal(text('#levelVal'), 'Ça tourne');
+  assert.equal(text('#autonomyVal'), '0 %');
   assert.equal(text('#sinceTag'), 'inscrit à 14:02:11');
-  assert.match($('#modeChip').textContent, /Compétitif/);
+  assert.match($('#modeChip').textContent, /Challenge/);
 
   // Le plan liste les 7 modules et leurs missions.
   assert.equal($$('#questMap .map-mod').length, 7);
@@ -353,7 +362,7 @@ test('le parcours se construit depuis les données du serveur', async () => {
   assert.equal($$('#questMap .qitem:not(.locked):not(.done)').length, 1);
 
   // L'encart « à faire maintenant » pointe sur la première mission.
-  assert.match($('#questMap .map-next-t').textContent, /Image ou conteneur/);
+  assert.match($('#questMap .map-next-t').textContent, /Diagnostiquer la machine/);
   assert.equal(text('#questPanel .quest-head h2'), pack.quests[0].title);
 });
 
@@ -409,8 +418,13 @@ test('le formulaire propose la commande, puis le champ de saisie', async () => {
   // La commande de récupération doit être affichée, prête à coller.
   const hint = box.querySelector('.fetch-hint');
   assert.ok(hint, 'la commande de récupération doit être visible');
-  assert.match(hint.querySelector('.fetch-hint-code').textContent, /docker run/,
-    'la commande affichée doit être une vraie commande Docker');
+  const cmd = hint.querySelector('.fetch-hint-code').textContent;
+  // La première quête a lieu avant l'installation de Docker : la commande y est
+  // un `curl`. Le test vérifie qu'elle cible bien le portail et porte le jeton,
+  // pas qu'elle contient « docker run » — ce serait faux pour cette quête.
+  assert.match(cmd, /api\/secret\//, 'la commande doit viser le portail');
+  assert.match(cmd, /dq_testtoken/, 'le jeton doit y être déjà substitué');
+  assert.doesNotMatch(cmd, /dq_x{10}/, 'le littéral du jeton ne doit pas subsister');
 
   // Le champ doit être VISIBLE immédiatement : un étudiant qui ne voit pas où
   // taper est bloqué. Et il ne doit contenir aucun mot de passe.
@@ -483,10 +497,11 @@ test('le panneau de mission affiche énoncé, indices et point de contrôle', as
   assert.match(panel.querySelector('#flagInput').getAttribute('placeholder'), /FLAG/);
 });
 
-test('soumettre une mission met à jour score, progression et historique', async () => {
+test('soumettre une mission met à jour la maîtrise, la progression et l\'historique', async () => {
   stubFetch();
   registered = [];
   submitted = [];
+  hintsPris = 0;
   const app = await loadClient();
   store.clear();
   await app.bootPlayer();
@@ -501,7 +516,8 @@ test('soumettre une mission met à jour score, progression et historique', async
   assert.deepEqual(submitted, [q.flag], 'le flag est bien envoyé');
   assert.equal(registered.length, 1);
   assert.equal(text('#progressVal'), `1/${pack.totalQuests}`);
-  assert.match(text('#scoreVal'), /\d/, 'le score est affiché');
+  // Validée sans indice : elle compte pour l'autonomie.
+  assert.equal(text('#autonomyVal'), '100 %');
   assert.match(text('#sinceTag'), /inscrit/);
 
   // L'historique liste la mission validée.
@@ -533,17 +549,18 @@ test('un flag invalide affiche une erreur sans casser la page', async () => {
 test('le mode normal n\'affiche ni score ni rang ni temps', async () => {
   stubFetch({
     '/api/quests': () => ({ ...questPayload(registered), mode: 'normal' }),
-    '/api/me': () => ({ ...mePayload(registered), mode: 'normal', score: null, rank: null,
-      history: mePayload(registered).history.map((h) => ({ ...h, time_display: null })) }),
+    '/api/me': () => mePayload(registered, 'normal'),
   });
   registered = [];
   const app = await loadClient();
   store.clear();
   await app.bootPlayer();
 
-  assert.equal($('#statScore').hidden, true, 'le bloc score est masqué');
-  assert.equal($('#statRank').hidden, true, 'le bloc rang est masqué');
-  assert.match($('#modeChip').textContent, /Normal/);
+  // Le mode Sans stress ne masque plus de bloc de score : il n'y en a plus.
+  // Ce qui le distingue, c'est le libellé — et surtout que rien n'est appliqué
+  // différemment selon le mode.
+  assert.match($('#modeChip').textContent, /Sans stress/);
+  assert.match(text('#autonomyVal'), /\d+ %/, 'l\'autonomie s\'affiche dans les deux modes');
   // L'historique ne doit contenir aucun chronomètre.
   assert.doesNotMatch($('#historyBox').textContent, /⏱/);
   assert.match($('#historyBox').textContent, /validée/);
