@@ -26,7 +26,24 @@ const state = {
   current: null,  // id de la quête affichée
   source: null,   // EventSource
   retries: 0,     // échecs de connexion successifs (backoff)
+  // Réponses de compréhension déjà données, par quête. C'est un **miroir de la
+  // base**, pas l'état de vérité : il est réhydraté depuis
+  // `GET /api/quests/:id/attempts` à chaque ouverture. Sans cela, un simple
+  // rechargement de page effacerait l'historique des réponses et ferait
+  // repasser l'élève pour une question à laquelle il avait déjà répondu juste.
+  compr: {},
 };
+
+/**
+ * Les libellés des deux modes.
+ *
+ * Dupliqués depuis `src/config.js` : le client est une page HTML servie telle
+ * quelle, sans build, donc sans import possible. Le serveur reste la source de
+ * vérité — `test/contract.test.js` compare les deux listes, et tombe si elles
+ * divergent. C'est le prix à payer pour ne pas introduire un bundler dans un
+ * projet qui n'en a pas besoin.
+ */
+const MODE_LABELS = { competitive: 'Challenge', normal: 'Sans stress' };
 
 /* ══════════════════════════════════════════════════════════════ utilitaires */
 
@@ -209,63 +226,116 @@ function setLive(etat) {
 }
 
 function renderPortal(data) {
-  const { competitive, normal, meta } = data;
+  // Le portail lit `players`, pas `competitive` / `normal` : la V1 exposait une
+  // liste par mode, triée par score. La V2 renvoie **tous** les joueurs dans
+  // `players`, avec leurs trois ratios, sans classement. Lire les anciens champs
+  // donnait `undefined` partout, et `rows.length` levait une exception : le
+  // portail enseignant ne s'affichait pas du tout.
+  const { players = [], meta } = data;
 
   $('#questCount').textContent = meta.total_quests;
 
-  renderPodium(competitive, meta);
-  renderCompetitive(competitive, meta);
-  renderNormal(normal);
-  renderCurl(meta);
+  renderCohort(meta.cohort, meta.total_quests);
+  renderPlayers(players, meta.total_quests);
+  renderCurl();
 }
 
-function renderPodium(rows, meta) {
+/**
+ * Le résumé de la classe, à la place du podium.
+ *
+ * Le podium classait des scores. Il n'y a plus de score, donc plus rien à
+ * classer — et surtout, un tableau de tête ne répond pas à la question que
+ * l'enseignant se pose en séance : « est-ce que ça avance, et où est-ce que ça
+ * coince ? ». Ce bandeau répond aux deux.
+ */
+function renderCohort(coh, totalQuests) {
   const box = $('#podium');
   box.textContent = '';
-  if (!rows.length) {
-    box.appendChild(el('p', 'podium-empty', 'Le podium attend son premier compétitif.'));
+
+  if (!coh || coh.players === 0) {
+    box.appendChild(el('p', 'podium-empty',
+      'Aucun inscrit. Les élèves rejoignent la session ci-dessous.'));
     return;
   }
-  // Ordre d'affichage : 2ᵉ, 1ᵉʳ, 3ᵉ — la structure classique d'un podium.
-  const order = [rows[1], rows[0], rows[2]].filter(Boolean);
-  const heights = ['', 'is-first', ''];
-  const medals = ['🥈', '🥇', '🥉'];
 
-  order.forEach((row, idx) => {
-    const step = el('div', `podium-step ${heights[idx] ?? ''}`);
-    step.appendChild(el('div', 'podium-ico', medals[idx]));
-    step.appendChild(el('div', 'podium-team', row.team));
-    step.appendChild(el('div', 'podium-score', `${row.score} pts`));
-    step.appendChild(el('div', 'podium-bar'));
-    box.appendChild(step);
-  });
+  const stats = el('div', 'cohort');
+  const encart = (k, v, sub) => {
+    const c = el('div', 'cohort-card');
+    c.appendChild(el('div', 'cohort-v', v));
+    c.appendChild(el('div', 'cohort-k', k));
+    if (sub) c.appendChild(el('div', 'cohort-s', sub));
+    return c;
+  };
 
-  const foot = el('div', 'podium-foot');
-  foot.appendChild(el('span', '', `${meta.players} compétitif${meta.players > 1 ? 's' : ''}`));
-  if (meta.leader) foot.appendChild(el('span', '', `👑 ${meta.leader.team} en tête`));
-  box.appendChild(foot);
+  stats.appendChild(encart('Inscrits', String(coh.players),
+    `${Math.round(coh.started_ratio * 100)}% ont commencé`));
+  stats.appendChild(encart('Avancement moyen',
+    totalQuests ? (coh.started_ratio * totalQuests).toFixed(1) : '0',
+    `sur ${totalQuests} quêtes`));
+  stats.appendChild(encart('Autonomie moyenne',
+    pct(coh.average_autonomy),
+    `${coh.average_hints} indice(s) par quête validée`));
+
+  // « Où est-ce que ça coince ? » — l'atelier où les indices sont le plus
+  // consommés. C'est le seul signal qui mérite une mise en avant : il dit où
+  // l'enseignant doit aller, pas qui a perdu.
+  if (coh.hardest?.length) {
+    const pire = coh.hardest[0];
+    const alert = el('div', 'cohort-alert');
+    alert.appendChild(el('span', 'cohort-alert-k', '🔍 Atelier le plus consommé'));
+    alert.appendChild(el('span', 'cohort-alert-v', `Atelier ${pire.module}`));
+    alert.appendChild(el('span', 'cohort-alert-s', `${pire.hints} indice(s) demandé(s)`));
+    stats.appendChild(alert);
+  }
+  box.appendChild(stats);
 }
 
-function renderCompetitive(rows, meta) {
-  const body = $('#compBody');
+/** Le tableau des joueurs, tous modes confondus, sans classement. */
+function renderPlayers(rows, totalQuests) {
+  const body = $('#playersBody');
   body.textContent = '';
   if (!rows.length) {
-    body.appendChild(emptyRow(6, 'Aucun compétitif inscrit.'));
+    body.appendChild(emptyRow(8, "Aucun inscrit pour l'instant."));
     return;
   }
-  for (const row of rows) {
-    const tr = el('tr');
-    tr.appendChild(el('td', 'c-rank', rankBadge(row.rank, row.finished)));
 
+  // Tri alphabétique, comme sur le serveur. Ce n'est pas un goût : c'est la seule
+  // façon de retrouver un élève en séance sans faire défiler un classement qui
+  // n'a plus de sens.
+  const tries = [...rows].sort((a, b) => a.team.localeCompare(b.team, 'fr'));
+
+  for (const row of tries) {
+    const tr = el('tr');
     const team = el('td');
     team.appendChild(el('span', 'team-cell', `> ${row.team}`));
-    if (row.finished) team.appendChild(el('span', 'badge badge-done', 'TERMINÉ'));
+    if (row.finished) team.appendChild(el('span', 'badge badge-done', 'ACHEVÉ ✅'));
     tr.appendChild(team);
+
+    // `el()` refuse un nœud en troisième argument — c'est le garde-fou qui
+    // empêche un « [object HTMLSpanElement] » d'atterrir dans une cellule. Un
+    // nœud s'ajoute avec `appendChild`.
+    const mode = el('td', 'c-mid');
+    mode.appendChild(el('span', `badge ${row.mode === 'competitive' ? 'badge-run' : 'badge-done'}`,
+      MODE_LABELS[row.mode] ?? row.mode));
+    tr.appendChild(mode);
 
     const prog = el('td', 'c-mid');
-    prog.appendChild(questBadges(row.completed, meta.total_quests));
+    prog.appendChild(questBadges(row.quest_numbers, totalQuests));
+    prog.appendChild(el('span', 'progress-text', row.progress ?? ''));
     tr.appendChild(prog);
-    tr.appendChild(el('td', 'c-mid score-cell', String(row.score)));
+
+    const auto = el('td', 'c-mid ratio-cell');
+    auto.appendChild(ratioCell(row.autonomy_ratio));
+    tr.appendChild(auto);
+
+    const compr = el('td', 'c-mid ratio-cell');
+    compr.appendChild(ratioCell(row.comprehension_ratio));
+    tr.appendChild(compr);
+
+    const niveau = el('td', 'c-mid');
+    niveau.appendChild(el('span', 'badge', row.level_name ?? row.level));
+    tr.appendChild(niveau);
+
     tr.appendChild(el('td', 'c-right dim', heure(row.last_submit_iso, row.last_submission)));
     const ip = el('td', 'c-right');
     ip.appendChild(cellIp(row.last_ip));
@@ -274,36 +344,22 @@ function renderCompetitive(rows, meta) {
   }
 }
 
-function renderNormal(rows) {
-  const body = $('#normBody');
-  body.textContent = '';
-  if (!rows.length) {
-    body.appendChild(emptyRow(5, 'Aucun étudiant inscrit.'));
-    return;
-  }
-  for (const row of rows) {
-    const tr = el('tr');
-    const team = el('td');
-    team.appendChild(el('span', 'team-cell', `> ${row.team}`));
-    tr.appendChild(team);
-
-    const badges = el('td', 'c-mid');
-    badges.appendChild(questBadges(row.completed));
-    badges.appendChild(el('span', 'progress-text', row.progress ?? ''));
-    tr.appendChild(badges);
-
-    const status = el('td', 'c-mid');
-    status.appendChild(row.finished
-      ? el('span', 'badge badge-done', 'ACHEVÉ ✅')
-      : el('span', 'badge badge-run', 'EN COURS'));
-    tr.appendChild(status);
-
-    tr.appendChild(el('td', 'c-right dim', heure(row.last_submit_iso, row.last_submission)));
-    const ip = el('td', 'c-right');
-    ip.appendChild(cellIp(row.last_ip));
-    tr.appendChild(ip);
-    body.appendChild(tr);
-  }
+/**
+ * Un ratio : une barre, un pourcentage.
+ *
+ * Une barre plutôt qu'un nombre nu, parce que « 0.43 » ne veut rien dire pour
+ * un enseignant qui regarde vingt élèves d'un coup, alors que « 43 % » se
+ * compare d'une ligne à l'autre. La barre rend l'œil plus rapide encore.
+ */
+function ratioCell(v) {
+  const cell = el('span', 'ratio');
+  const n = Math.round((v ?? 0) * 100);
+  const bar = el('span', 'ratio-bar');
+  bar.style.width = `${n}%`;
+  bar.dataset.level = n >= 60 ? 'ok' : n >= 30 ? 'mid' : 'low';
+  cell.appendChild(bar);
+  cell.appendChild(el('span', 'ratio-n', `${n}%`));
+  return cell;
 }
 
 /**
@@ -345,18 +401,23 @@ function cellIp(ip) {
 }
 
 /** Pastilles 1..N : remplies si validées. Rendue compacte au-delà de 20. */
-function questBadges(completed = [], total = 0) {
+/**
+ * Les pastilles de progression : une par mission, allumée si elle est validée.
+ *
+ * `done` est une liste de **numéros** de mission, pas d'identifiants — voir
+ * `quest_numbers` dans `src/portal.js`. La progression n'est pas linéaire (par
+ * défaut, tout est accessible), donc on ne peut pas supposer que les missions
+ * validées sont les premières.
+ */
+function questBadges(done = [], total = 0) {
   const box = el('span', 'qbadges');
-  const list = completed.length ? completed : [];
-  const n = Math.max(total, list.length, list.at(-1) ?? 0);
+  const faits = new Set(done.map(Number));
+  const n = Math.max(total, faits.size ? Math.max(...faits) : 0);
   for (let i = 1; i <= n; i++) {
-    box.appendChild(el('i', `qdot${list.includes(i) ? ' on' : ''}`, String(i)));
+    box.appendChild(el('i', `qdot${faits.has(i) ? ' on' : ''}`, String(i)));
   }
   return box;
 }
-
-const rankBadge = (rank, finished) =>
-  `${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : `#${rank}`}${finished ? ' ✅' : ''}`;
 
 function emptyRow(span, text) {
   const tr = el('tr');
@@ -366,27 +427,39 @@ function emptyRow(span, text) {
   return tr;
 }
 
-function renderCurl(meta) {
-  const host = location.host;
+/**
+ * Les commandes `curl` affichées sous le formulaire d'inscription.
+ *
+ * Deux corrections par rapport à la V1 :
+ *
+ * - `location.origin` et non `http://${location.host}` : le portail est servi
+ *   en HTTPS derrière Caddy. Une commande en `http://` renvoyait une
+ *   redirection, et un élève qui l'a suivie depuis un terminal sans `curl -L`
+ *   obtenait une page vide sans comprendre pourquoi.
+ * - plus de « score et chrono », ni de nom d'équipe à deux personnes : les
+ *   élèves travaillent seuls en V2, et le score n'existe plus.
+ */
+function renderCurl() {
+  const url = location.origin;
   $('#curlExamples').textContent =
-`# 1. S'inscrire (mode compétitif, avec score et chrono)
-curl -X POST http://${host}/api/register \\
+`# 1. S'inscrire — mode Challenge : les indices coûtent de l'autonomie
+curl -X POST ${url}/api/register \\
   -H "Content-Type: application/json" \\
-  -d '{"team": "CyberPhoenix", "mode": "competitive"}'
+  -d '{"team": "MonPseudo", "mode": "competitive"}'
 
-# 2. S'inscrire (mode normal, sans pression)
-curl -X POST http://${host}/api/register \\
+# 2. S'inscrire — mode Sans stress : les indices sont gratuits
+curl -X POST ${url}/api/register \\
   -H "Content-Type: application/json" \\
-  -d '{"team": "Alice_Bob", "mode": "normal"}'
+  -d '{"team": "MonPseudo", "mode": "normal"}'
 
-# 3. Valider une mission : le token reçu à l'inscription sers d'authentification
-curl -X POST http://${host}/api/submit \\
+# 3. Valider une mission — le token reçu à l'inscription fait authentification
+curl -X POST ${url}/api/submit \\
   -H "Content-Type: application/json" \\
   -H "X-Arena-Token: dq_..." \\
-  -d '{"flag": "FLAG{HELLO_DOCKER_ENGINE_RUNNING}"}'
+  -d '{"flag": "FLAG{...}"}'
 
-# 4. Voir le classement en direct
-curl http://${host}/api/overview`;
+# 4. Suivre la classe (progression, autonomie, compréhension — pas de score)
+curl ${url}/api/overview`;
 }
 
 /* ═══════════════════════════════════════════════════ vue : inscription */
@@ -477,25 +550,23 @@ async function bootPlayer() {
  * quête compte pour son autonomie — parce que c'est la seule chose qui ne
  * dépende que de lui.
  */
+/**
+ * Le bilan affiché après une validation, dans le champ de message du formulaire.
+ *
+ * Il y avait deux implémentations de ce bilan — celle-ci et `buildSuccess` — et
+ * l'appelant écrivait dans un nœlu détaché après le repeint : rien ne
+ * s'affichait. Une seule fonction construit la carte, un seul endroit l'affiche.
+ *
+ * Pas de score : il n'y en a plus. Ce que l'élève veut savoir, c'est si cette
+ * quête compte pour son autonomie — parce que c'est la seule chose qui ne
+ * dépende que de lui.
+ */
 function renderValidationReport(out, res) {
-  const r = res.quest_result ?? {};
-  const bits = [res.message ?? 'Quête validée.'];
-
-  if (r.autonomous) {
-    bits.push('Elle compte pour ton autonomie : tu l\'as réussie seul.');
-  } else if (r.hints_used) {
-    bits.push(`Elle compte pour ta progression, pas pour ton autonomie : `
-      + `${r.hints_used} indice${r.hints_used > 1 ? 's' : ''} demandé${r.hints_used > 1 ? 's' : ''}.`);
-  }
-
-  const m = res.mastery;
-  if (m) {
-    bits.push(`Autonomie : ${Math.round(m.autonomy_ratio * 100)} % · `
-      + `niveau ${m.level.name}.`);
-  }
-
+  if (!out) return;
   out.className = 'submit-msg submit-ok';
-  out.textContent = bits.join(' ');
+  out.textContent = '';
+  out.appendChild(buildSuccess(res));
+  toast(res.message ?? 'Mission validée !', 'ok');
 }
 
 function renderHeader() {
@@ -544,15 +615,17 @@ function renderHistory() {
   const { me } = state;
   box.textContent = '';
 
-  const competitive = me.mode === 'competitive';
-  box.appendChild(el('h3', 'history-title',
-    competitive ? '📊 Tes résultats' : '📋 Tes missions validées'));
+  // Le titre ne dépend plus du mode : les deux modes affichent les mêmes
+  // missions validées. Ce qui change, c'est la colonne de droite — le temps
+  // en Challenge, le rappel de l'autonomie en Sans stress.
+  box.appendChild(el('h3', 'history-title', '📋 Tes missions validées'));
 
   if (!me.history.length) {
     box.appendChild(el('p', 'dim', 'Aucune mission validée pour l\'instant.'));
     return;
   }
 
+  const competitive = me.mode === 'competitive';
   const list = el('div', 'history-list');
   for (const h of me.history) {
     const quest = state.pack.modules.flatMap((m) => m.quests).find((q) => q.id === h.quest_id);
@@ -562,9 +635,11 @@ function renderHistory() {
     row.appendChild(el('span', 'h-title', quest?.title ?? h.quest_id));
 
     if (competitive) {
-      row.appendChild(el('span', 'h-time', `⏱ ${h.time_display ?? '—'}`));
-      const total = h.points + (h.speed_bonus ?? 0);
-      row.appendChild(el('span', 'h-pts', `${total} pts`));
+      row.appendChild(el('span', 'h-time', `⏱ ${duree(h.time_ms)}`));
+      // En Challenge, on dit ce que la validation a coûté — et c'est toujours
+      // l'autonomie, jamais des points. Le score a disparu du jeu ; il ne doit
+      // pas réapparaître dans un coin de l'écran sous forme de « undefined ».
+      row.appendChild(el('span', 'h-pts h-plain', autonomieDe(h)));
     } else {
       row.appendChild(el('span', 'h-pts h-plain', 'validée ✅'));
     }
@@ -572,14 +647,41 @@ function renderHistory() {
   }
   box.appendChild(list);
 
-  if (competitive) {
-    const foot = el('div', 'history-foot');
-    const erreurs = me.history.reduce((a, h) => a + (h.wrong_flags ?? 0), 0);
-    foot.appendChild(el('span', '', `Total : ${me.score} pts`));
-    foot.appendChild(el('span', 'dim',
-      erreurs ? `${erreurs} faux flag${erreurs > 1 ? 's' : ''}` : 'aucun faux flag'));
-    box.appendChild(foot);
-  }
+  const foot = el('div', 'history-foot');
+  const indices = me.history.reduce((a, h) => a + (h.hints_used ?? 0), 0);
+  const juste = me.history.filter((h) => h.check_ok).length;
+  // Le ratio d'autonomie vit sous `me.mastery`, pas à la racine : `/api/me` a
+  // suivi le même mouvement que le reste de l'API, et lire `me.autonomy_ratio`
+  // donnait `NaN %` en bas de l'historique.
+  const autonomie = Math.round((me.mastery?.autonomy_ratio ?? 0) * 100);
+  foot.appendChild(el('span', '',
+    `${me.history.length} mission${me.history.length > 1 ? 's' : ''} · `
+    + `${autonomie}% d'autonomie`));
+  foot.appendChild(el('span', 'dim',
+    indices ? `${indices} indice${indices > 1 ? 's' : ''} demandé${indices > 1 ? 's' : ''}`
+            : 'sans aucun indice',
+    ));
+  foot.appendChild(el('span', 'dim',
+    juste ? `${juste}/${me.history.length} comprises du premier coup` : ''));
+  box.appendChild(foot);
+}
+
+/** Une durée en millisecondes, lisible. Le serveur envoie `time_ms`, pas une
+ *  chaîne formatée : le formatage suit le fuseau du navigateur, donc il est
+ *  fait ici. */
+function duree(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Rappel d'une seule mission : ce qu'elle a coûté, en une ligne. */
+function autonomieDe(h) {
+  const bits = [];
+  if (h.hints_used) bits.push(`${h.hints_used} indice${h.hints_used > 1 ? 's' : ''}`);
+  if (h.recall_ok === false) bits.push('réflexe à revoir');
+  return bits.length ? bits.join(' · ') : 'autonome ✅';
 }
 
 function renderMap() {
@@ -590,7 +692,13 @@ function renderMap() {
 
   const head = el('div', 'map-head');
   head.appendChild(el('h3', '', 'Programme'));
-  head.appendChild(el('p', 'map-count', `${doneCount}/${state.pack.total_quests} · ${state.pack.total_points} pts`));
+  // Le compteur porte les **minutes**, pas des points : c'est la seule unité
+  // qui dit quelque chose à l'élève. `total_points` n'existe plus dans l'API —
+  // l'afficher produisait « undefined pts ».
+  const minutes = state.pack.total_minutes
+    ?? allQuests().reduce((a, q) => a + (q.est_minutes ?? 0), 0);
+  head.appendChild(el('p', 'map-count',
+    `${doneCount}/${state.pack.total_quests} missions · ~${minutes} min`));
   map.appendChild(head);
 
   // Aucune mission n'est verrouillée : si le joueur est bloqué, il peut
@@ -602,7 +710,7 @@ function renderMap() {
     const box = el('div', 'map-next');
     box.appendChild(el('span', 'map-next-k', open.length === 1 ? 'Dernière mission' : 'Par où continuer'));
     box.appendChild(el('span', 'map-next-t', next.title));
-    box.appendChild(el('span', 'map-next-p', `${next.points} pts`));
+    box.appendChild(el('span', 'map-next-p', `~${next.est_minutes} min`));
     const go = el('button', 'btn btn-primary btn-sm', 'Ouvrir →');
     go.type = 'button';
     go.addEventListener('click', () => openQuest(next.id));
@@ -611,14 +719,14 @@ function renderMap() {
   }
 
   for (const m of state.pack.modules) {
-    const modPoints = m.quests.reduce((a, q) => a + q.points, 0);
+    const modDone = m.quests.filter((q) => q.completed).length;
     const box = el('div', 'map-mod');
 
     const title = el('button', 'map-mod-head');
     title.type = 'button';
     title.appendChild(el('span', 'mod-ico', m.icon));
     title.appendChild(el('span', 'mod-title', m.title));
-    title.appendChild(el('span', 'mod-pts', `${modPoints} pts`));
+    title.appendChild(el('span', 'mod-pts', `${modDone}/${m.quests.length}`));
     box.appendChild(title);
 
     const list = el('ul', 'mod-quests');
@@ -631,7 +739,7 @@ function renderMap() {
       btn.appendChild(el('span', 'qname', q.title));
       if (q.completed) btn.appendChild(el('span', 'qok', '✅'));
       else if (q.locked) btn.appendChild(el('span', 'qlock', '🔒'));
-      else btn.appendChild(el('span', 'qpts', `${q.points} pts`));
+      else btn.appendChild(el('span', 'qpts', `~${q.est_minutes} min`));
       btn.addEventListener('click', () => openQuest(q.id));
       li.appendChild(btn);
       list.appendChild(li);
@@ -684,10 +792,10 @@ function renderCurrent() {
   const quests = allQuests();
   const next = quests.find((q) => !q.completed);
   const target = state.current && quests.find((q) => q.id === state.current);
-  openQuest((target ?? next ?? quests.at(-1)).id, false);
+  return openQuest((target ?? next ?? quests.at(-1)).id);
 }
 
-function openQuest(id, rerenderMap = true) {
+function openQuest(id) {
   const quests = allQuests();
   const q = quests.find((x) => x.id === id);
   if (!q) return;
@@ -703,6 +811,23 @@ function openQuest(id, rerenderMap = true) {
   }
   state.current = id;
 
+  // L'état des réponses vient du serveur, pas de la mémoire de l'onglet. Le
+  // rendu est donc asynchrone : on rend quand la requête revient, sinon
+  // l'affichage qui suit écraserait ce qu'elle apporte. La promesse est
+  // renvoyée pour que l'appelant puisse attendre un panneau peint.
+  return hydrateCompr(q).then(() => paintQuest(q));
+}
+
+/**
+ * Dessine le panneau de la quête courante.
+ *
+ * Séparé de `openQuest` parce que l'état des réponses de compréhension arrive
+ * du serveur : on ne peut pas peindre avant de l'avoir. Un seul endroit dessine,
+ * donc le rendu après un rechargement est le même que le rendu initial.
+ */
+function paintQuest(q) {
+  const isDone = state.pack.completed.includes(q.id);
+
   const panel = $('#questPanel');
   panel.textContent = '';
 
@@ -712,7 +837,10 @@ function openQuest(id, rerenderMap = true) {
   line.appendChild(el('span', 'quest-mod', `${q.number} · ${state.pack.modules.find((m) => m.module === q.number || m.quests.some((x) => x.id === q.id))?.title ?? ''}`));
   line.appendChild(el('h2', '', q.title));
   const tags = el('div', 'quest-tags');
-  tags.appendChild(el('span', `tag ${q.flagship ? 'tag-flagship' : 'tag-pts'}`, `${q.points} pts`));
+  // Plus de points : la star marque une quête « phare » (celle qui fait le
+  // conceptclic), le nombre donne la durée. La classe `tag-pts` devient
+  // `tag-star`.
+  tags.appendChild(el('span', `tag ${q.flagship ? 'tag-flagship' : 'tag-star'}`, q.flagship ? '★ phare' : '★'));
   tags.appendChild(el('span', 'tag', `⏱ ~${q.est_minutes} min`));
   tags.appendChild(el('span', 'tag tag-done', isDone ? '✅ Validée' : '⏳ En cours'));
   line.appendChild(tags);
@@ -780,6 +908,9 @@ function openQuest(id, rerenderMap = true) {
             + (r.free_next ? ' Le prochain sera gratuit.' : '')));
         } else if (r.already_taken) {
           hintBox.appendChild(el('p', 'dim', 'Tu avais déjà pris cet indice.'));
+        } else if (r.free) {
+          hintBox.appendChild(el('p', 'hint-free',
+            'Mode Sans stress : tous les indices sont gratuits.'));
         } else {
           hintBox.appendChild(el('p', 'hint-free', 'Dernier indice : celui-ci est gratuit.'));
         }
@@ -812,15 +943,20 @@ function openQuest(id, rerenderMap = true) {
     panel.appendChild(cp);
   }
 
+  // ── compréhension vérifiée
+  //
+  // Les questions et le réflexe sont rendus **après** le point de contrôle et
+  // **avant** le formulaire : c'est l'ordre dans lequel on les vit — on fait le
+  // travail, on vérifie qu'on l'a compris, puis on valide.
+  //
+  // Les réponses déjà données sont relues au chargement, pour qu'un élève qui
+  // revient sur une quête ne réponde pas deux fois à la même question.
+  if (q.check?.length || q.recall) {
+    panel.appendChild(buildComprehension(q));
+  }
+
   // ── soumission du flag
   panel.appendChild(buildSubmitBox(q));
-
-  // Le récapitulatif de la validation vient d'être obtenu : on l'affiche sous
-  // les indices, avant le formulaire (qui n'a plus rien à soumettre).
-  if (state.lastSuccess?.quest_validated === q.number) {
-    panel.appendChild(buildSuccess(state.lastSuccess));
-    state.lastSuccess = null;
-  }
 
   if (isDone && q.solution) panel.appendChild(buildSolution(q));
 
@@ -841,9 +977,214 @@ function openQuest(id, rerenderMap = true) {
     panel.appendChild(box);
   }
 
-  if (rerenderMap) renderMap();
+  renderMap();
   renderHeader();
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Recharge depuis la base les réponses déjà données sur cette quête.
+ *
+ * La base est la source de vérité : l'onglet peut être rechargé, le serveur
+ * redémarré, la réponse donnée la veille. `explanation` et `hint` ne sont pas
+ * rejoués — ils ne sont renvoyés qu'au moment de la bonne réponse, pour ne pas
+ * les exposer dans l'onglet réseau. Un élève qui recharge voit donc « ✓ Juste »
+ * sans la justification : il l'a déjà lue.
+ */
+async function hydrateCompr(q) {
+  const store = {};
+  try {
+    const r = await api(`/api/quests/${q.id}/attempts`);
+    for (const a of r.attempts ?? []) {
+      const key = `${a.kind}:${a.item_id}`;
+      // La base ne stocke que des chaînes : on rend le type que la question
+      // attend, sinon « true » (texte) ne serait jamais égal à `true` (booléen)
+      // et une question Vrai/Faux déjà réussie apparaîtrait comme fausse.
+      const item = a.kind === 'recall'
+        ? q.recall
+        : (q.check ?? []).find((c) => c.id === a.item_id);
+      const answer = item?.kind === 'boolean' ? a.answer === 'true' : a.answer;
+      store[key] = {
+        correct: a.correct,
+        attempts: a.attempts,
+        answer: item?.kind === 'mcq' ? Number(a.answer) : answer,
+      };
+    }
+  } catch {
+    // Réseau coupé ou joueur non identifié : l'élève voit des questions
+    // neuves. C'est dégradé, pas cassé — et les réponses suivantes repartiront
+    // bien dans la base.
+    return;
+  }
+  state.compr[q.id] = store;
+}
+
+/**
+ * Le bloc « as-tu compris ? » : questions à choix fermé et réflexe.
+ *
+ * La réponse ne bloque **jamais** la validation : c'est un choix pédagogique
+ * (punir un élève qui a cherché le punit de chercher moins). Ce qui change, c'est
+ * la colonne `check_ok` de la validation, donc la maîtrise « compréhension ».
+ *
+ * Chaque question garde son état : juste, faux avec l'aide, faux tout court. La
+ * justification n'arrive qu'après une bonne réponse — l'envoyer d'abord
+ * viderait la question de son intérêt.
+ */
+function buildComprehension(q) {
+  const box = el('div', 'compr');
+  box.appendChild(el('h3', 'compr-t', 'As-tu compris ?'));
+  box.appendChild(el('p', 'compr-sub',
+    'Réponds pour vérifier. Un indice ne te coûtera rien si tu te trompes.'));
+  state.compr[q.id] = state.compr[q.id] ?? {};
+  box.appendChild(buildQuestions(q));
+  if (q.recall) box.appendChild(buildRecall(q));
+  return box;
+}
+
+function buildQuestions(q) {
+  const wrap = el('div', 'compr-qs');
+  for (const c of q.check ?? []) {
+    wrap.appendChild(oneQuestion(q, c));
+  }
+  return wrap;
+}
+
+function oneQuestion(q, c) {
+  const deja = state.compr[q.id][`check:${c.id}`] ?? null;
+  const box = el('div', `qcm${c.required ? '' : ' qcm-opt'}`);
+
+  box.appendChild(el('p', 'qcm-p',
+    (c.required ? '' : 'Facultatif — ') + c.prompt));
+
+  if (c.kind === 'boolean') {
+    const form = el('div', 'qcm-choices');
+    for (const [val, label] of [[true, 'Vrai'], [false, 'Faux']]) {
+      const b = el('button', 'qcm-choice');
+      b.type = 'button';
+      b.textContent = label;
+      b.disabled = deja?.correct === true;
+      if (deja?.correct === true && deja.answer === val) b.className = 'qcm-choice ok';
+      b.addEventListener('click', () => answerQuestion(q, c, val, box, form));
+      form.appendChild(b);
+    }
+    box.appendChild(form);
+    box.appendChild(feedback(q, c, deja));
+    return box;
+  }
+
+  const form = el('div', 'qcm-choices');
+  c.choices.forEach((label, i) => {
+    const b = el('button', 'qcm-choice');
+    b.type = 'button';
+    b.textContent = label;
+    b.disabled = deja?.correct === true;
+    if (deja?.correct === true && Number(deja.answer) === i) b.className = 'qcm-choice ok';
+    b.addEventListener('click', () => answerQuestion(q, c, i, box, form));
+    form.appendChild(b);
+  });
+  box.appendChild(form);
+  box.appendChild(feedback(q, c, deja));
+  return box;
+}
+
+/** Affiche l'état d'une question : juste, faux, ou le rappel des essais. */
+function feedback(q, c, deja) {
+  const out = el('div', 'qcm-fb');
+  if (!deja) {
+    out.appendChild(el('p', 'dim', 'Aucune réponse pour l\'instant.'));
+    return out;
+  }
+  if (deja.correct) {
+    out.appendChild(el('p', 'ok', '✓ Juste.'));
+  } else {
+    out.appendChild(el('p', 'err',
+      `Faux, ${deja.attempts} essai${deja.attempts > 1 ? 's' : ''}.`
+      + ' Réessaie — ça ne te coûte rien.'));
+  }
+  if (deja.explanation) out.appendChild(el('p', 'why', deja.explanation));
+  return out;
+}
+
+/**
+ * Envoie une réponse et recharge la question avec le retour du serveur.
+ *
+ * On recharge la question entière plutôt que de la modifier sur place : c'est la
+ * seule façon d'être sûr que l'affichage reflète la réponse du serveur. Un
+ * client qui décide seul « c'est juste » n'aurait aucun intérêt.
+ */
+async function answerQuestion(q, c, answer, box, form) {
+  for (const b of form.children) b.disabled = true;
+  try {
+    const r = await api(`/api/quests/${q.id}/check`, {
+      method: 'POST',
+      body: { id: c.id, answer },
+    });
+    state.compr[q.id][`check:${c.id}`] = {
+      correct: r.correct, attempts: r.attempts, answer, explanation: r.explanation,
+    };
+  } catch (err) {
+    state.compr[q.id][`check:${c.id}`] = {
+      correct: false, attempts: 1, answer, explanation: null, erreur: err.message,
+    };
+  }
+  box.replaceWith(oneQuestion(q, c));
+}
+
+function buildRecall(q) {
+  const r = q.recall;
+  const deja = state.compr[q.id][`recall:${r.id}`] ?? null;
+  const box = el('div', 'qcm qcm-recall');
+  box.appendChild(el('p', 'qcm-p', `Réflexe — ${r.prompt}`));
+
+  const form = el('div', 'recall-form');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'recall-input';
+  input.placeholder = 'Ta réponse, en un mot';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+
+  const send = el('button', 'btn btn-sm btn-primary', 'Vérifier');
+  send.type = 'button';
+  send.disabled = deja?.correct === true;
+  if (deja?.correct) input.value = deja.answer;
+
+  const run = async () => {
+    if (!input.value.trim()) return;
+    send.disabled = true;
+    try {
+      const res = await api(`/api/quests/${q.id}/recall`, {
+        method: 'POST',
+        body: { answer: input.value },
+      });
+      state.compr[q.id][`recall:${r.id}`] = {
+        correct: res.correct, attempts: res.attempts,
+        answer: input.value, hint: res.hint,
+      };
+    } catch (err) {
+      state.compr[q.id][`recall:${r.id}`] = {
+        correct: false, attempts: 1, answer: input.value, erreur: err.message,
+      };
+    }
+    box.replaceWith(buildRecall(q));
+  };
+
+  send.addEventListener('click', run);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+  if (deja?.correct) input.disabled = true;
+
+  form.appendChild(input);
+  form.appendChild(send);
+  box.appendChild(form);
+
+  if (deja?.correct) {
+    box.appendChild(el('p', 'ok', `✓ Juste — ${deja.attempts} essai${deja.attempts > 1 ? 's' : ''}.`));
+  } else if (deja) {
+    box.appendChild(el('p', 'err',
+      `Pas encore — ${deja.attempts} essai${deja.attempts > 1 ? 's' : ''}.`));
+    if (deja.hint) box.appendChild(el('p', 'why', deja.hint));
+  }
+  return box;
 }
 
 function buildSubmitBox(q) {
@@ -860,7 +1201,7 @@ function buildSubmitBox(q) {
   box.addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = box.querySelector('#flagInput');
-    const out = box.querySelector('#submitMsg');
+    const out = box.querySelector('.submit-msg');
     const btn = box.querySelector('button[type=submit]');
 
     btn.disabled = true;
@@ -878,16 +1219,16 @@ function buildSubmitBox(q) {
         out.className = 'submit-msg submit-warn';
         out.textContent = res.message;
       } else {
-        // On reste sur la mission validée (voir commentaire plus haut) et on
-        // propose explicitement de passer à la suivante.
-        state.lastSuccess = res;
         input.value = '';
+        // On attend le repeint : le panneau est reconstruit, l'ancien champ de
+        // message n'existe plus. Écrire dedans sans attendre mettrait le bilan
+        // dans un nœud détaché — invisible à l'écran.
+        //
+        // On reste sur la mission validée : c'est là qu'on relit son bilan,
+        // et c'est aussi là que se trouve le bouton vers la suivante.
         await refresh();
-        // `refresh()` relit `state.me` depuis le serveur, donc l'autonomie
-        // affichée est la bonne. Mais le message de retour dit ce que CETTE
-        // quête a rapporté — « avec 1 indice » — et c'est l'information que
-        // l'élève veut voir avant de passer à la suivante.
-        renderValidationReport(out, res);
+        // Le nœud vit dans le panneau repeint, pas dans l'ancien formulaire.
+        renderValidationReport($('#questPanel .submit-msg'), res);
       }
     } catch (err) {
       out.className = 'submit-msg submit-err';
@@ -945,49 +1286,86 @@ function buildSubmitBox(q) {
   box.appendChild(row);
 
   const out = el('div', 'submit-msg');
-  out.id = 'submitMsg';
   box.appendChild(out);
   return box;
 }
 
+/**
+ * La carte de confirmation d'une validation.
+ *
+ * Ce que cette quête a rapporté, formulé qualitativement. Le serveur ne renvoie
+ * ni `breakdown` ni `points_earned` : l'affichage de la V1 calculait
+ * `Total : undefined pts`, parce qu'il lisait des champs que l'API ne fournit
+ * plus. On affiche ce qui existe réellement.
+ */
 function buildSuccess(res) {
   const card = el('div', 'success');
   card.appendChild(el('div', 'success-head', `✅ ${res.message ?? 'Mission validée !'}`));
+  card.appendChild(el('div', 'success-count', res.completed_count));
 
-  if (res.breakdown) {
+  // Les noms de champs viennent de `questResult()` dans src/progress.js :
+  // `autonomous`, `hints_used`, `check_ok`, `check_total`, `understood`.
+  const r = res.quest_result ?? {};
+  const bits = [];
+  if (r.autonomous) {
+    bits.push('elle compte pour ton autonomie : réussie seule ✅');
+  } else if (r.hints_used) {
+    bits.push(`progression mais pas autonomie : `
+      + `${r.hints_used} indice${r.hints_used > 1 ? 's' : ''} demandé${r.hints_used > 1 ? 's' : ''}`);
+  }
+  if (r.understood) {
+    bits.push(r.check_total
+      ? `comprise du premier coup (${r.check_total})`
+      : 'comprise');
+  } else {
+    bits.push('compréhension à revoir');
+  }
+  card.appendChild(el('p', 'success-total', bits.join(' · ')));
+
+  // La maîtrise, lisible : trois ratios, pas un total. Un élève qui valide sa
+  // 3ᵉ quête n'a pas « 300 points » — il a fait 3 quêtes sur 27, il a su faire
+  // seul, il a compris.
+  const m = res.mastery;
+  if (m) {
     const ul = el('ul', 'breakdown');
-    const rows = [
-      ['Points de base', res.breakdown.base, ''],
-      ['🥇 Bonus de podium', res.breakdown.speed_bonus, 'bonus'],
-      ['⚡ Bonus de rapidité', res.breakdown.pace_bonus, 'bonus'],
-      ['Erreurs de flag', -res.breakdown.penalty, 'malus'],
-    ];
-    for (const [k, v, cls] of rows) {
-      if (!v) continue;
+    for (const [k, val, cls] of [
+      ['Progression', m.progress_ratio, ''],
+      ['Autonomie', m.autonomy_ratio, m.autonomy_ratio >= 0.6 ? 'bonus' : 'malus'],
+      ['Compréhension', m.comprehension_ratio, m.comprehension_ratio >= 0.6 ? 'bonus' : 'malus'],
+    ]) {
       const li = el('li', cls);
       li.appendChild(el('span', '', k));
-      li.appendChild(el('b', '', v > 0 ? `+${v}` : String(v)));
+      li.appendChild(el('b', '', pct(val)));
       ul.appendChild(li);
     }
     card.appendChild(ul);
-    card.appendChild(el('div', 'success-total',
-      `Total : ${res.points_earned} pts · Score cumulé ${res.score_total} pts`));
-    if (res.rank) {
-      card.appendChild(el('div', 'success-rank',
-        `Tu es ${res.rank === 1 ? '🥇 1ᵉʳ' : `#${res.rank}`} au classement.`));
-    }
-  } else {
-    card.appendChild(el('div', 'success-total',
-      `Progression : ${res.completed_count} — mode normal, aucun score.`));
+    card.appendChild(el('div', 'success-rank', `Niveau : ${m.level.name}`));
+  }
+
+  if (res.time_display) card.appendChild(el('div', 'success-time', `⏱ ${res.time_display}`));
+
+  // Le passage à la mission suivante est **ici**, dans la confirmation, et pas
+  // seulement dans le bandeau de la carte. Un test humain a signalé « la fin de
+  // la quête 1 valide la quête 2 et la quête 1 reste ouverte » : la mission
+  // validée reste affichée, et rien ne disait que c'était fini. Un bouton
+  // explicite, dans le message de succès, lève l'ambiguïté.
+  if (res.unlocked_next) {
+    const q = allQuests().find((x) => x.id === res.unlocked_next);
+    const box = el('div', 'next-box');
+    box.appendChild(el('p', '', q ? `Prochaine mission : ${q.title}` : 'Prochaine mission'));
+    const go = el('button', 'btn btn-primary', 'Continuer →');
+    go.type = 'button';
+    go.addEventListener('click', () => openQuest(res.unlocked_next));
+    box.appendChild(go);
+    card.appendChild(box);
+  } else if (res.finished) {
+    card.appendChild(el('p', 'next-box',
+      '🏁 Parcours terminé. Tu peux relire n\'importe quelle mission.'));
   }
   return card;
 }
 
-function showSuccess(res, out) {
-  out.className = 'submit-msg submit-ok';
-  out.appendChild(buildSuccess(res));
-  toast(res.message ?? 'Mission validée !', 'ok');
-}
+const pct = (x) => `${Math.round((x ?? 0) * 100)}%`;
 
 function buildSolution(q) {
   const box = el('div', 'solution');
@@ -1004,7 +1382,11 @@ async function refresh() {
   renderHeader();
   renderMap();
   renderHistory();
-  renderCurrent();
+  // `renderCurrent` est attendu : le panneau de la mission est repeint, et
+  // l'appelant doit pouvoir écrire dans ce panneau **après**. Sans cela, le
+  // message de confirmation partait dans un nœud détaché — il n'apparaissait
+  // nulle part, et un élève validant une mission ne voyait rien se passer.
+  await renderCurrent();
 }
 
 async function loadCommands() {

@@ -27,43 +27,32 @@
 
   <main class="wrap portal-body">
 
-    <!-- Podium -->
-    <section class="panel panel-amber">
+    <!--
+      Le suivi de la classe. Les deux modes sont dans le même tableau, avec les
+      mêmes colonnes : ils jouent le même contenu, la seule différence est le prix
+      des indices. Les séparer en deux tableaux — comme le faisait la V1 —avensait
+      de comparer un mode à l'autre, ce qui n'a aucun sens : ce n'est pas une
+      course.
+    -->
+    <section class="panel">
       <div class="panel-head">
-        <h2><span class="ico">🏆</span> Ligue Compétitive</h2>
-        <span class="panel-sub">Classé au score · bonus de rapidité</span>
+        <h2><span class="ico">📊</span> Suivi de la classe</h2>
+        <span class="panel-sub">Progression · autonomie · compréhension</span>
       </div>
       <div id="podium" class="podium"></div>
       <div class="table-scroll">
         <table class="board">
           <thead><tr>
-            <th class="c-rank">#</th><th>Équipe</th>
+            <th>Équipe</th>
+            <th class="c-mid">Mode</th>
             <th class="c-mid">Progression</th>
-            <th class="c-mid">Score</th>
+            <th class="c-mid">Autonomie</th>
+            <th class="c-mid">Compréhension</th>
+            <th class="c-mid">Niveau</th>
             <th class="c-right">Dernier flag</th>
             <th class="c-right">Poste (IP)</th>
           </tr></thead>
-          <tbody id="compBody"><tr><td colspan="6" class="empty">Aucun compétitif inscrit.</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Suivi normal -->
-    <section class="panel panel-emerald">
-      <div class="panel-head">
-        <h2><span class="ico">🧘</span> Mode Normal — Suivi d'achèvement</h2>
-        <span class="panel-sub">Progression individuelle · aucun chrono, aucun score</span>
-      </div>
-      <div class="table-scroll">
-        <table class="board">
-          <thead><tr>
-            <th>Étudiant / Binôme</th>
-            <th class="c-mid">Quêtes validées</th>
-            <th class="c-mid">Statut du lab</th>
-            <th class="c-right">Dernière action</th>
-            <th class="c-right">Poste (IP)</th>
-          </tr></thead>
-          <tbody id="normBody"><tr><td colspan="5" class="empty">Aucun étudiant inscrit.</td></tr></tbody>
+          <tbody id="playersBody"></tbody>
         </table>
       </div>
     </section>

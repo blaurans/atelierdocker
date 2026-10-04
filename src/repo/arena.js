@@ -83,10 +83,10 @@ export function deletePlayer(id) {
 const insertCompletion = db.prepare(`
   INSERT INTO completions
     (player_id, quest_id, quest_number, points, wrong_flags, time_ms,
-     hints_used, check_ok, recall_ok, status, completed_at, completed_hh)
+     hints_used, hints_charged, check_ok, recall_ok, status, completed_at, completed_hh)
   VALUES
     (@player_id, @quest_id, @quest_number, @points, @wrong_flags, @time_ms,
-     @hints_used, @check_ok, @recall_ok, @status, @at, @hh)
+     @hints_used, @hints_charged, @check_ok, @recall_ok, @status, @at, @hh)
 `);
 
 const hasCompletion = db.prepare('SELECT 1 FROM completions WHERE player_id = ? AND quest_id = ?');
@@ -120,6 +120,7 @@ export const recordCompletion = (args) =>
     time_ms: null,
     wrong_flags: 0,
     hints_used: 0,
+    hints_charged: 0,
     check_ok: 0,
     recall_ok: 0,
     status: 'done',

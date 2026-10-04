@@ -40,12 +40,20 @@ test('la page déclare les deux modes', () => {
   assert.ok(html.indexOf('data-mode="competitive"') < html.indexOf('id="gateForm"'));
 });
 
-test('le portail contient podium et suivi normal, séparés', () => {
-  assert.match(html, /id="podium"/);
-  assert.match(html, /id="compBody"/);
-  assert.match(html, /id="normBody"/);
-  assert.ok(html.indexOf('id="podium"') < html.indexOf('id="normBody"'),
-    'le podium doit précéder le tableau de suivi');
+test('le portail suit la classe, tous modes confondus', () => {
+  // Un seul tableau, pas un par mode. Les deux modes jouent le même contenu :
+  // les séparer en deux tableauxavait de comparer un mode à l'autre, ce qui
+  // n'a aucun sens puisque ce n'est pas une course.
+  assert.match(html, /id="playersBody"/);
+  assert.doesNotMatch(html, /id="compBody"/, 'le tableau par mode a disparu');
+  assert.doesNotMatch(html, /id="normBody"/);
+  assert.doesNotMatch(html, /Ligue Compétitive/i, 'la copie de la V1 est restée');
+  assert.doesNotMatch(html, /Classé au score/, 'la promesse du score est restée');
+  // Le bandeau remplace le podium : mêmes colonnes, pas de classement.
+  for (const h of ['Autonomie', 'Compréhension', 'Niveau']) {
+    assert.ok(html.includes(h), `colonne manquante : ${h}`);
+  }
+  assert.doesNotMatch(html, /<th[^>]*>Score<\/th>/);
 });
 
 test('le client lit les champs que l\'API renvoie réellement', () => {
@@ -54,24 +62,44 @@ test('le client lit les champs que l\'API renvoie réellement', () => {
   // ici. `mode_label` est volontairement exclu, c'est une commodité d'API que
   // le client recalcule pour pouvoir afficher un libellé localisé.
   const exemple = {
-    team: 'X', mode: 'competitive', score: 10, rank: 1,
-    total_quests: 26, progress: '1/26', finished: false,
+    team: 'X', mode: 'competitive', mode_label: 'Challenge',
+    mastery: { progress_ratio: 0.04, autonomy_ratio: 1, comprehension_ratio: 0.5,
+      level: { key: 'debut', name: 'Débutant' } },
+    total_quests: 27, progress: '1/27', finished: false,
     registered_at: '10:00:00', last_submission: '10:01:00', next_quest: 'x',
-    history: [{ quest_id: 'a', quest_number: 1, points: 25,
-      speed_bonus: 60, wrong_flags: 0, time_ms: 1000, time_display: '1 s' }],
+    history: [{ quest_id: 'a', quest_number: 1, title: 'T', hints_used: 0,
+      autonomous: true, check_ok: true, recall_ok: true, wrong_flags: 0, time_ms: 1000 }],
   };
   const inutilises = Object.keys(exemple).filter((c) => !clientJs.includes(c));
   assert.deepEqual(inutilises, [], `app.js n'utilise pas : ${inutilises.join(', ')}`);
+  // Et l'inverse : aucun champ de score ne doit être **lu**, parce qu'il
+  // n'existe plus dans l'API. C'est ainsi qu'on a obtenu « NaN pts » et
+  // « undefined pts » à l'écran.
+  //
+  // On cherche une lecture (`${x.score}`), pas la simple présence du mot : les
+  // commentaires du client nomment ces champs pour expliquer pourquoi ils ont
+  // disparu, et une recherche par sous-chaîne les prennent pour des usages.
+  // Un test qui oblige à ne même plus nommer le score dans une phrase est un
+  // test qui casse au prochain commentaire.
+  for (const lecture of ['${row.score}', '${me.score}', '${res.points_earned}',
+    '${res.score_total}', '${res.rank}', '${state.pack.total_points}']) {
+    assert.ok(!clientJs.includes(lecture),
+      `le client lit ${lecture}, un champ qui n'existe plus dans l'API`);
+  }
 });
 
-test('le client gère les deux réponses de submit', () => {
+test('le client gère les trois réponses de submit', () => {
   for (const statut of ['success', 'already_submitted', 'pending']) {
     assert.ok(clientJs.includes(`'${statut}'`), `app.js ne traite pas status: ${statut}`);
   }
-  // Le détail du score n'existe qu'en compétitif : il faut savoir l'afficher
-  // ET savoir s'en passer.
-  assert.match(clientJs, /if \(res\.breakdown\)/);
-  assert.match(clientJs, /if \(res\.status === 'already_submitted'\)/);
+  // Le récapitulatif parle maîtrise, pas score. La V1 lisait
+  // `res.breakdown` et `res.points_earned`, que l'API ne renvoie plus :
+  // l'écran affichait « Total : undefined pts ».
+  assert.doesNotMatch(clientJs, /if \(res\.breakdown\)/,
+    'le breakdown n\'existe plus dans l\'API : le test le lisait et affichait « undefined »');
+  assert.doesNotMatch(clientJs, /res\.(points_earned|score_total|rank)\b/);
+  assert.match(clientJs, /res\.mastery/, 'le bilan doit lire la maîtrise');
+  assert.match(clientJs, /res\.unlocked_next/, 'et proposer la mission suivante');
 });
 
 test('le verrouillage n\'est qu\'un guidage, activé par l\'enseignant', () => {

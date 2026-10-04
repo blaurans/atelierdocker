@@ -116,6 +116,11 @@ ajouterColonneSiAbsente('players', 'last_submit_at', 'TEXT');
 // `hint_uses` et `attempts` n'ont pas besoin de migration : ce sont des tables
 // neuves, créées par le `CREATE TABLE IF NOT EXISTS` ci-dessus.
 ajouterColonneSiAbsente('completions', 'hints_used', 'INTEGER NOT NULL DEFAULT 0');
+// `hints_charged` est distinct de `hints_used` : c'est le nombre d'indices qui
+// ont **coûté** de l'autonomie. En mode Sans stress ils sont gratuits — donc
+// consommés, mais pas facturés — et `hints_used` seul ferait dire à un élève
+// qu'il n'a pas su faire seul alors qu'il n'a rien payé.
+ajouterColonneSiAbsente('completions', 'hints_charged', 'INTEGER NOT NULL DEFAULT 0');
 ajouterColonneSiAbsente('completions', 'check_ok', 'INTEGER NOT NULL DEFAULT 0');
 ajouterColonneSiAbsente('completions', 'recall_ok', 'INTEGER NOT NULL DEFAULT 0');
 

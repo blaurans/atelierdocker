@@ -36,6 +36,7 @@ test('une base V1 se met à niveau au démarrage', async () => {
     .replace(/\n\s*hints_used\s+INTEGER[^,]*,\n/, '\n')
     .replace(/\n\s*check_ok\s+INTEGER[^,]*,\n/, '\n')
     .replace(/\n\s*recall_ok\s+INTEGER[^,]*,\n/, '\n')
+    .replace(/\n\s*hints_charged\s+INTEGER[^,]*,\n/, '\n')
     // Et les deux tables. Le motif va jusqu'au `;` de fin d'instruction, ce
     // qui emporte aussi les `CREATE INDEX` qui suivent.
     .replace(/CREATE TABLE IF NOT EXISTS hint_uses[\s\S]*?;/g, '')
@@ -63,7 +64,9 @@ test('une base V1 se met à niveau au démarrage', async () => {
   const { db } = await import(`../src/db.js?t=${Date.now()}`);
 
   const apres = db.prepare('PRAGMA table_info(completions)').all().map((c) => c.name);
-  for (const col of ['hints_used', 'check_ok', 'recall_ok']) {
+  // `hints_charged` est dans la liste : sans elle, l'insertion échouerait sur
+  // « no column named hints_charged » et le conteneur bouclerait au démarrage.
+  for (const col of ['hints_used', 'hints_charged', 'check_ok', 'recall_ok']) {
     assert.ok(apres.includes(col), `completions.${col} doit exister après migration`);
   }
 
@@ -81,11 +84,12 @@ test('une base V1 se met à niveau au démarrage', async () => {
   db.prepare(`
     INSERT INTO completions
       (player_id, quest_id, quest_number, points, wrong_flags, time_ms,
-       hints_used, check_ok, recall_ok, status, completed_at, completed_hh)
-    VALUES (1, 'm1-01-x', 1, 100, 0, 1000, 1, 1, 0, 'done', '2026-01-01T10:05:00.000Z', '10:05:00')
+       hints_used, hints_charged, check_ok, recall_ok, status, completed_at, completed_hh)
+    VALUES (1, 'm1-01-x', 1, 100, 0, 1000, 1, 1, 1, 0, 'done', '2026-01-01T10:05:00.000Z', '10:05:00')
   `).run();
   const ligne = db.prepare('SELECT * FROM completions WHERE quest_id = ?').get('m1-01-x');
   assert.equal(ligne.hints_used, 1);
+  assert.equal(ligne.hints_charged, 1);
   // Les colonnes de barème V1 gardent leur valeur par défaut, pas NULL.
   assert.equal(ligne.speed_bonus, 0);
 

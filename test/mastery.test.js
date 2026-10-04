@@ -195,3 +195,47 @@ test('maîtrise : des lignes sans les nouvelles colonnes ne plantent pas', () =>
   assert.equal(m.autonomous, 1);
   assert.equal(m.understood, 0);
 });
+
+/* ------------------------------------------------- indices payés / demandés */
+
+test('un indice gratuit ne coûte pas l\'autonomie', () => {
+  // La distinction qui manquait : en mode Sans stress l'indice est consommé et
+  // gratuit. Compter la consommation comme une perte d'autonomie annulait le
+  // prix sans annuler la conséquence — l'élève voyait sa maîtrise chuter sans
+  // avoir rien payé, et le message lui annonçait « sans indice » juste après
+  // qu'il en avait demandé un.
+  const base = { module: 1, check_ok: 1, recall_ok: 1, hints_used: 0 };
+
+  const gratuit = mastery({
+    completions: [{ ...base, hints_used: 3, hints_charged: 0 }],
+    totalQuests: 27,
+  });
+  const paye = mastery({
+    completions: [{ ...base, hints_used: 3, hints_charged: 3 }],
+    totalQuests: 27,
+  });
+  const aucun = mastery({ completions: [base], totalQuests: 27 });
+
+  assert.equal(gratuit.autonomy_ratio, aucun.autonomy_ratio,
+    'trois indices gratuits ne coûtent rien : même autonomie qu\'aucun indice');
+  assert.equal(paye.autonomy_ratio, 0, 'trois indices payés, ce n\'est pas gratuit');
+
+  // Et les deux totaux sont accessibles : l'enseignant veut savoir ce qui a été
+  // demandé (où ça coince) et ce qui a été payé (le mode Challenge mord-il ?).
+  assert.equal(gratuit.hints_used, 3, 'les indices demandés sont comptés');
+  assert.equal(gratuit.hints_charged, 0, 'et les indices payés séparément');
+  assert.equal(paye.hints_charged, 3);
+});
+
+test('une validation sans la colonne hints_charged reste lisible', () => {
+  // Migration : les validations écrites avant l\'existence de `hints_charged`
+  // ont `hints_used` et rien d\'autre. Elles doivent compter comme ce qu\'elles
+  // disaient — une quête payée — sinon l'autonomie d'un élève déjà validé
+  // remonterait au redémarrage, et son niveau avec.
+  const m = mastery({
+    completions: [{ module: 1, check_ok: 1, recall_ok: 1, hints_used: 2 }],
+    totalQuests: 27,
+  });
+  assert.equal(m.autonomy_ratio, 0);
+  assert.equal(m.hints_charged, 2, 'la colonne absente est lue comme le compteur paye');
+});

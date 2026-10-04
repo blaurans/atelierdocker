@@ -231,10 +231,34 @@ test('le contrat exige un démarrage bloqué si le contenu est invalide', () => 
 });
 
 test('le contrat impose les règles de verrouillage du client', () => {
-  assert.match(api, /solution: done\.has\(q\.id\) \? q\.solution : null/,
-    'la correction doit être conditionnée à la validation');
+  // La correction part par `jouable()` : le mot de passe y apparaît avec son
+  // littéral de jeton, et un élève qui vérifie son propre travail après une
+  // validation obtenait un 401. La règle est donc « conditionnée **et** rendue
+  // jouable ».
+  assert.match(api, /solution: done\.has\(q\.id\) \? t0\(q\.solution\) : null/,
+    'la correction doit être conditionnée à la validation et rendue jouable');
   assert.ok(/les\s*\n?missions validées/.test(doc),
     'le contrat doit dire que la correction est conditionnée');
+});
+
+test('tout texte du contenu qui porte un littéral est rendu jouable', () => {
+  // Le brief, la correction et la commande de récupération portent tous
+  // `dq_xxxxxxxxxxxxxxxx` et `https://SERVER_IP`. Un seul d'eux a oublié la
+  // substitution : les 27 briefs affichaient un mot de passe mort, et un élève
+  // a rapporté « 401 Unauthorized » en testant.
+  //
+  // On vérifie qu'il n'existe plus **une seule** substitution manuelle dans
+  // `api.js` : tout passe par `jouable()`, donc il ne peut plus y en avoir deux
+  // qui divergent.
+  const substitutions = [...api.matchAll(/replaceAll\('([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(substitutions)], ['https://SERVER_IP', 'http://SERVER_IP',
+    'dq_xxxxxxxxxxxxxxxx', '$ARENA_TOKEN'],
+  `substitutions inattendues dans api.js : ${substitutions.join(', ')}`);
+
+  // Et `jouable()` couvre bien `$ARENA_TOKEN` : c'est ce qui permet à un élève
+  // de ne copier que la ligne `docker run`, sans la ligne `export` au-dessus.
+  assert.match(api, /\.replaceAll\('\$ARENA_TOKEN', player\.token\)/,
+    'la variable du brief doit être remplacée, sinon elle reste vide');
 });
 
 /* -------------------------------------------------------------------- maîtrise */

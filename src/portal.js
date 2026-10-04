@@ -64,7 +64,11 @@ export function overview() {
       progress_ratio: m.progress_ratio,
       autonomy_ratio: m.autonomy_ratio,
       comprehension_ratio: m.comprehension_ratio,
+      // Les indices demandés — c'est ce que l'enseignant veut voir pour savoir
+      // où ça coince — et les indices payés, qui disent si le mode Challenge est
+      // réellement en train de mordre.
       hints_used: m.hints_used,
+      hints_charged: m.hints_charged,
       level: m.level.key,
       level_name: m.level.name,
       modules: m.modules,
@@ -75,7 +79,12 @@ export function overview() {
       registered_at: p.registered_at,
       last_ip: p.last_ip || null,
       last_submit_iso: p.last_submit_at || null,
+      // Les **numéros** autant que les identifiants : le tableau de suivi dessine
+      // une pastille par mission, et une pastille se positionne par numéro. Le
+      // client ne charge pas le programme sur la vue enseignant, il ne peut donc
+      // pas convertir un identifiant en numéro lui-même.
       quests: done.map((c) => c.quest_id),
+      quest_numbers: done.map((c) => c.quest_number),
       last_quest: done.at(-1)?.quest_id ?? null,
     };
   });

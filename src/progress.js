@@ -4,7 +4,7 @@ import {
   doneOf, wrongFlagCount, markFinished, logEvent, markSubmitTime,
   recordCompletion, setCompletionStatus, doneCount,
 } from './repo/arena.js';
-import { hintsUsed, checksPassedFirstTry } from './repo/progress_repo.js';
+import { hintsUsed, chargesSoFar, checksPassedFirstTry } from './repo/progress_repo.js';
 import { quests } from './questpack.js';
 import { announce } from './events.js';
 
@@ -39,6 +39,16 @@ function moduleTotals(pack) {
  */
 function questResult(player, quest, done) {
   const hints = hintsUsed(player.id, quest.id);
+  // Les indices **payés**. En mode Sans stress le prix est annulé côté serveur
+  // (voir `atelier.post('/quests/:id/hint')`), donc cette valeur est nulle : un
+  // élève qui a demandé de l'aide sans en payer conserve son autonomie, ce qui
+  // est précisément ce que promet le mode.
+  //
+  // C'est `hints_charged` et non `hints_used` qui décide de l'autonomie. Seule
+  // la première compte, sinon le mode Sans stress aurait annulé le prix sans
+  // annuler la conséquence — un élève se serait vu retirer son autonomie sans
+  // avoir rien payé, et il n'aurait jamais compris pourquoi.
+  const charged = chargesSoFar(player.id, quest.id);
   const passed = checksPassedFirstTry(player.id, quest);
   const required = (quest.check ?? []).filter((c) => c.required).length
     + (quest.recall ? 1 : 0);
@@ -46,10 +56,11 @@ function questResult(player, quest, done) {
   return {
     quest_id: quest.id,
     hints_used: hints,
+    hints_charged: charged,
     // `autonomous` est le mot important : il dit qu'un élève a réussi sans
     // qu'on l'aide. C'est le seul signal qui survive à la comparaison avec
     // les autres, parce qu'il ne dépend que de lui.
-    autonomous: hints === 0,
+    autonomous: charged === 0,
     check_ok: passed,
     check_total: required,
     understood: required === 0 ? true : passed,
@@ -88,6 +99,7 @@ const record = db.transaction(({ player, quest, requireAttestation }) => {
     wrong_flags: wrongFlagCount(player.id),
     time_ms: timeMs,
     hints_used: result.hints_used,
+    hints_charged: result.hints_charged,
     check_ok: result.check_ok ? 1 : 0,
     recall_ok: result.check_ok && quest.recall ? 1 : 0,
     status: requireAttestation ? 'pending' : 'done',

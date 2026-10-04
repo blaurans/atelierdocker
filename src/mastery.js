@@ -82,7 +82,14 @@ export function mastery({ completions = [], totalQuests = 0, byModule = {} }) {
   // le jeu n'en compte que 5 aujourd'hui.
   const progressRatio = totalQuests > 0 ? done.length / totalQuests : 0;
 
-  const autonomous = done.filter((c) => (c.hints_used ?? 0) === 0);
+  // L'autonomie se mesure sur les indices **payés**, pas sur ceux consommés. En
+  // mode Sans stress l'élève peut demander autant d'indices qu'il veut sans en
+  // payer aucun : les compter comme une perte d'autonomie contredirait la
+  // promesse du mode, et l'élève verrait son score baisser sans avoir rien
+  // payé.
+  const payes = (c) => (c.hints_charged ?? c.hints_used ?? 0);
+
+  const autonomous = done.filter((c) => payes(c) === 0);
   const understood = done.filter((c) => c.check_ok === 1);
   const reflex = done.filter((c) => c.recall_ok === 1);
 
@@ -94,13 +101,17 @@ export function mastery({ completions = [], totalQuests = 0, byModule = {} }) {
   const comprehensionRatio = progressRatio > 0 ? understood.length / done.length : 0;
   const reflexRatio = progressRatio > 0 ? reflex.length / done.length : 0;
 
+  // Deux totaux, parce que l'enseignant veut les deux : ce que ses élèves ont
+  // demandé (un atelier qui consomme des indices est un atelier où ça coince)
+  // et ce qu'ils ont payé (le mode Challenge est-il activé, et compris ?).
   const hints = done.reduce((a, c) => a + (c.hints_used ?? 0), 0);
+  const hintsCharged = done.reduce((a, c) => a + payes(c), 0);
 
   // Détail par atelier : c'est la vue qui sert au suivi en cours d'année,
   // parce qu'elle dit *où* l'élève en est, pas seulement combien.
   const modules = Object.entries(byModule).map(([module, count]) => {
     const inModule = done.filter((c) => c.module === Number(module));
-    const inModuleAutonomous = inModule.filter((c) => (c.hints_used ?? 0) === 0);
+    const inModuleAutonomous = inModule.filter((c) => payes(c) === 0);
     return {
       module: Number(module),
       total: count,
@@ -119,6 +130,7 @@ export function mastery({ completions = [], totalQuests = 0, byModule = {} }) {
     understood: understood.length,
     reflex: reflex.length,
     hints_used: hints,
+    hints_charged: hintsCharged,
     progress_ratio: round(progressRatio),
     autonomy_ratio: round(autonomyRatio),
     comprehension_ratio: round(comprehensionRatio),
@@ -145,12 +157,15 @@ export function mastery({ completions = [], totalQuests = 0, byModule = {} }) {
 export function cohort(rows, totalQuests, players = rows.length) {
   const done = rows.map((r) => ({
     module: r.module,
+    // Les indices **demandés**, pas seulement les payés : c'est le signal qui
+    // dit à l'enseignant où ça coince, et il vaut dans les deux modes.
     hints_used: r.hints_used,
+    hints_charged: r.hints_charged,
     check_ok: r.check_ok,
     recall_ok: r.recall_ok,
   }));
 
-  const autonomy = done.filter((c) => (c.hints_used ?? 0) === 0).length;
+  const autonomy = done.filter((c) => (c.hints_charged ?? c.hints_used ?? 0) === 0).length;
 
   // L'enseignant veut une question simple : « où est-ce que ça coince ? ».
   // La réponse est l'atelier où les indices sont le plus consommés, pas celui

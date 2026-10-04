@@ -99,6 +99,40 @@ const masteryOf = (playerId, pack) => {
  */
 const origin = (req) => `${req.protocol}://${req.hostname}`;
 
+/**
+ * Rend un texte du contenu jouable sur la machine de l'élève.
+ *
+ * Trois substitutions, dans cet ordre, et **partout** — pas seulement dans
+ * `fetch_hint`.
+ *
+ * L'oubli de `brief` a été trouvé par un test humain, pas par un test
+ * automatique : le brief contient la commande de récupération du mot de passe
+ * (« Ton mot de passe »), avec le littéral `dq_xxxxxxxxxxxxxxxx`. Un élève qui
+ * copie la commande de l'énoncé obtient `401 Unauthorized`, sans rien
+ * comprendre. Le portail, lui, affichait la bonne commande juste en dessous —
+ * deux versions de la même chose dans la même page, dont une cassée.
+ *
+ * `$ARENA_TOKEN` est remplacé pour la même raison : la commande du brief
+ * s'appuie sur la variable exportée juste avant, et un élève qui ne copie que
+ * la ligne `docker run` — la seule qui l'intéresse — se retrouve avec un jeton
+ * vide. Une commande doit fonctionner quand on la copie seule.
+ *
+ * Le jeton ne part jamais dans un texte qui ne le porte pas déjà : on remplace
+ * un littéral, on n'en injecte pas un nouveau.
+ */
+const jouable = (req, player) => (texte) => {
+  if (!texte) return texte;
+  let out = texte
+    .replaceAll('https://SERVER_IP', origin(req))
+    .replaceAll('http://SERVER_IP', origin(req));
+  if (player?.token) {
+    out = out
+      .replaceAll('dq_xxxxxxxxxxxxxxxx', player.token)
+      .replaceAll('$ARENA_TOKEN', player.token);
+  }
+  return out;
+};
+
 /* ------------------------------------------------------------------ secrets */
 
 /**
@@ -218,6 +252,10 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
     // Progression stricte désactivée par défaut : tout est accessible.
     const linear = config.linearProgression;
 
+    // Une seule fonction pour rendre tout texte jouable, appliquée au brief
+    // comme à la commande de récupération. Voir `jouable()`.
+    const t0 = jouable(req, player);
+
     res.json({
       total_quests: pack.totalQuests,
       total_points: pack.totalPoints,
@@ -237,8 +275,12 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
           flagship: q.flagship,
           est_minutes: q.estMinutes,
           teaches: q.teaches,
-          checkpoint: q.checkpoint,
-          brief: q.brief,
+          // Le point de contrôle et l'énoncé contiennent la commande de
+          // récupération du mot de passe, avec son littéral de jeton. Sans la
+          // substitution, l'élève copie une commande morte et reçoit un 401 —
+          // voir `jouable()`.
+          checkpoint: t0(q.checkpoint),
+          brief: t0(q.brief),
           // Le flag n'est PAS transmis : il se récupère par /api/secret et
           // n'existe pas dans le contenu. Le champ reste dans la base pour
           // l'anti-doublon, mais il ne sort jamais d'ici.
@@ -280,16 +322,15 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
           // à un protocole seul produirait « https://https://… ». Le jeton du
           // joueur remplace le littéral : sans lui, aucun conteneur ne peut rien
           // récupérer.
-          fetch_hint: q.fetchHint && player
-            ? q.fetchHint
-              .replaceAll('https://SERVER_IP', origin(req))
-              .replaceAll('http://SERVER_IP', origin(req))
-              .replaceAll('dq_xxxxxxxxxxxxxxxx', player.token)
-            : null,
+          fetch_hint: q.fetchHint && player ? t0(q.fetchHint) : null,
           // La correction n'est envoyée qu'une fois la mission validée : le
           // client ne doit pas pouvoir la lire avant, même depuis l'onglet
           // réseau du navigateur.
-          solution: done.has(q.id) ? q.solution : null,
+          // La correction est elle aussi rendue jouable : elle rappelle souvent
+          // la commande du mot de passe, et un littéral de jeton dans la
+          // correction d'une quête validée donnait un 401 à l'élève qui
+          // voulait vérifier son propre travail.
+          solution: done.has(q.id) ? t0(q.solution) : null,
           // Par défaut aucune mission n'est verrouillée : un étudiant
           // bloqué doit pouvoir consulter n'importe quelle autre mission.
           // Le mode linéaire, s'il est activé, garde la mission validée
@@ -337,7 +378,10 @@ api.get('/me', requirePlayer, (req, res, next) => {
           // parcours et de voir *quelles* quêtes lui ont coûté un indice,
           // plutôt qu'un total qu'il ne pourrait pas situer.
           hints_used: c.hints_used ?? 0,
-          autonomous: (c.hints_used ?? 0) === 0,
+          // Payés, pas demandés : en Sans stress l'élève a pu demander des
+          // indices sans en payer, et son autonomie est intacte.
+          hints_charged: c.hints_charged ?? 0,
+          autonomous: (c.hints_charged ?? c.hints_used ?? 0) === 0,
           check_ok: c.check_ok === 1,
           recall_ok: c.recall_ok === 1,
           // `pending` = flag correct mais attente de validation par
@@ -459,10 +503,17 @@ function buildMessage({ player, quest, outcome, doneIds, pack }) {
   const r = outcome.result ?? {};
   const bits = [`Quête ${quest.number} validée`];
 
-  if (r.autonomous) {
-    bits.push('sans indice — elle compte pour ton autonomie');
+  if (!r.autonomous) {
+    bits.push(`avec ${r.hints_used} indice${r.hints_used > 1 ? 's' : ''} `
+      + '— elle compte pour ta progression, pas pour ton autonomie');
   } else if (r.hints_used) {
-    bits.push(`avec ${r.hints_used} indice${r.hints_used > 1 ? 's' : ''}`);
+    // Élève Sans stress qui a demandé de l'aide sans la payer. Dire « sans
+    // indice » serait exact et trompeur : il en a demandé un, il le voit sur
+    // l'écran. La formulation dit ce qui s'est réellement passé.
+    bits.push(`avec ${r.hints_used} indice${r.hints_used > 1 ? 's' : ''}, `
+      + 'gratuit en mode Sans stress — elle compte pour ton autonomie');
+  } else {
+    bits.push('sans indice — elle compte pour ton autonomie');
   }
 
   if (doneIds.size === pack.totalQuests) {

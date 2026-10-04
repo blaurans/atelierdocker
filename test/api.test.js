@@ -181,6 +181,45 @@ test('le programme ne livre jamais les réponses', async () => {
     'aucune correction ne doit sortir avant la validation');
 });
 
+test('en mode Sans stress, les indices sont gratuits — et le serveur le dit', async () => {
+  wipe();
+  const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Zen', mode: 'normal' } });
+  const q = pack.quests[0];
+
+  const r = await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  assert.equal(r.json.autonomy_lost, 0,
+    'le mode Sans stress ne facture pas : c\'est la seule différence entre les deux modes');
+  assert.equal(r.json.free, true);
+  assert.equal(r.json.free_next, true,
+    'et le suivant aussi : rien ne reste à payer');
+
+  // Le contenu annonce bien un coût pour cet indice — sinon ce test passerait
+  // pour une quête sans indice. C\'est l\'annulation côté serveur qui est
+  // vérifiée, pas l\'absence de prix.
+  assert.ok((q.charge?.autonomy?.[0] ?? 0) > 0,
+    'cet indice a un prix en Challenge : le test porte donc bien sur l\'annulation');
+
+  // L'indice **est** consommé — la ligne existe, il n'y aura pas de deuxième
+  // exemplaire — mais elle n'est pas marquée comme facturée. C'est la
+  // distinction qui compte : un serveur qui répond 0 et enregistre quand même la
+  // perte mentirait à l'élève et à l'enseignant.
+  const lignes = db.prepare(
+    'SELECT charged FROM hint_uses h JOIN players p ON p.id = h.player_id WHERE p.token = ?',
+  ).all(reg.token);
+  assert.equal(lignes.length, 1, 'l\'indice est consommé : une ligne, pas deux pour un seul clic');
+  assert.equal(lignes[0].charged, 0, 'mais il n\'a rien coûté');
+});
+
+test('en mode Challenge, le même indice est facturé', async () => {
+  wipe();
+  const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Chrono', mode: 'competitive' } });
+  const q = pack.quests[0];
+
+  const r = await api(`/api/quests/${q.id}/hint`, { method: 'POST', token: reg.token });
+  assert.ok(r.json.autonomy_lost > 0, 'en Challenge, l\'indice coûte');
+  assert.equal(r.json.free, false);
+});
+
 test('un indice est facturé une fois, et seulement une fois', async () => {
   wipe();
   const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Facture', mode: 'competitive' } });

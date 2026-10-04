@@ -130,7 +130,25 @@ Invariants vérifiés par `src/questpack.js` :
 
 Le coût ne s'exprime pas en points — il n'y en a plus. Il s'exprime en
 **autonomie** : la part de quêtes validées sans indice. Une quête prise avec des
-indices compte pour la progression, pas pour l'autonomie.
+indices payants compte pour la progression, pas pour l'autonomie.
+
+#### Les deux modes ne diffèrent que par le prix
+
+En mode **Sans stress**, tout le prix est annulé : `autonomy_lost: 0`, et la
+ligne en base est écrite avec `charged = 0`. Un élève peut donc demander
+autant d'indices qu'il veut — et son autonomie est intacte.
+
+C'est pourquoi **deux compteurs** existent, et non un seul :
+
+| champ | ce que c'est | à quoi il sert |
+|---|---|---|
+| `hints_used` | indices **demandés** | l'enseignant voit où ça coince ; l'élève voit ce qu'il a demandé |
+| `hints_charged` | indices **payés** | c'est le seul qui décide de l'autonomie |
+
+La règle à retenir : **l'autonomie se mesure sur `hints_charged`**. Compter la
+consommation aurait annulé le prix sans annuler la conséquence — l'élève aurait
+vu sa maîtrise chuter sans avoir rien payé, et le message lui aurait annoncé
+« sans indice » juste après qu'il en avait demandé un.
 
 ### 1.6 `check` — compréhension vérifiée
 
@@ -232,14 +250,17 @@ string). Réponse :
   "quest_title": "Port Master",
   "mastery": {                      // la mesure, pas un score
     "done": 15, "total_quests": 26,
-    "autonomous": 12, "understood": 13, "hints_used": 9,
+    "autonomous": 12, "understood": 13,
+    "hints_used": 9,                // indices DEMANDÉS
+    "hints_charged": 6,             // indices PAYÉS — c'est eux qui coûtent l'autonomie
     "progress_ratio": 0.58, "autonomy_ratio": 0.8,
     "comprehension_ratio": 0.87,
     "level": { "key": "autonome", "name": "Autonome" }
   },
   "quest_result": {                 // ce que CETTE quête a rapporté
-    "hints_used": 1,
-    "autonomous": false,
+    "hints_used": 1,                // demandé
+    "hints_charged": 1,             // payé — en mode Sans stress : 0
+    "autonomous": false,            // hikes_charged === 0
     "check_ok": true
   },
   "completed_count": "15/26",
@@ -272,7 +293,9 @@ le tri alphabétique est le seul tri, et il ne classe personne.
     "progress_ratio": 0.58,
     "autonomy_ratio": 0.8,          // part de quêtes validées sans indice
     "comprehension_ratio": 0.87,    // part validée avec les QCM réussis
-    "hints_used": 9,
+    "hints_used": 9,                // demandés, tous modes confondus
+    "hints_charged": 6,             // payés — nuls pour un joueur Sans stress
+    "quest_numbers": [1, 2, 3, 4],  // numéros des missions validées (les pastilles)
     "level": "autonome", "level_name": "Autonome",
     "modules": [ { "module": 1, "total": 4, "done": 4,
                    "autonomous": 3, "understood": 4,

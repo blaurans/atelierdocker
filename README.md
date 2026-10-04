@@ -484,7 +484,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 159 tests
+npm test                  # 170 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -552,9 +552,10 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   159 tests : format du contenu, maîtrise, migration,
+test/                   170 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
-                        API, rendu, contrat, invariants, qualité du contenu
+                        API, rendu du portail et des QCM, contrat, invariants,
+                        qualité du contenu
 docs/CONTRACTS.md       contrat de données et d'API
 ```
 

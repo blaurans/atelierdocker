@@ -62,7 +62,14 @@ atelier.post('/quests/:id/hint', requirePlayer, (req, res, next) => {
     }
 
     const hint = pack.hintsByQuest.get(quest.id)[already];
-    const charged = quest.charge?.autonomy?.[already] ?? 1;
+
+    // Le mode Sans stress rend tous les indices gratuits — c'est la seule
+    // différence entre les deux modes (CONTRACTS § 1.5). Le prix est annulé
+    // côté serveur, jamais côté client : un client qui calcule lui-même le coût
+    // peut être trompé, alors qu'une écriture en base, non.
+    const gratuit = player.mode !== 'competitive';
+    const cout = quest.charge?.autonomy?.[already] ?? 1;
+    const charged = gratuit ? 0 : cout;
 
     const result = consumeHint({
       playerId: player.id,
@@ -79,11 +86,17 @@ atelier.post('/quests/:id/hint', requirePlayer, (req, res, next) => {
       index: already,
       hint,
       autonomy_lost: result.already ? 0 : charged,
+      // Le mode est renvoyé pour que le client puisse **dire** pourquoi le
+      // prix est nul. Sans cette phrase, un élève en mode Sans stress lit
+      // « ne compte pas pour ton autonomie » sans comprendre — et il en conclut
+      // que les indices ne sont pas disponibles dans ce mode.
+      free: gratuit,
       // L'élève doit voir ce qu'il vient de perdre, sinon le mode Challenge
       // devient une surprise. Et il doit voir ce qu'il lui reste, pour
       // savoir qu'un dernier indice sera gratuit.
       remaining: total - already - 1,
-      free_next: total - already - 1 > 0 && (quest.charge?.autonomy?.[already + 1] ?? 1) === 0,
+      free_next: gratuit
+        || (total - already - 1 > 0 && (quest.charge?.autonomy?.[already + 1] ?? 1) === 0),
     });
   } catch (e) { next(e); }
 });
