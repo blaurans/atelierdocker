@@ -52,7 +52,7 @@ test('la somme des points de chaque module est un multiple de 100 et croît', op
 
 test('les six missions du cahier des charges sont conservées avec leur barème', opts, () => {
   const attendus = [
-    ['FLAG{HELLO_DOCKER_ENGINE_RUNNING}', 100, 'Initial Boot'],
+    ['FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}', 100, 'Le premier serveur de la librairie'],
     ['FLAG{ALPINE_SH_INSPECTION_HERO}', 200, 'Infiltration Interactive'],
     ['FLAG{PORT_MAPPING_WEB_EXPERT_8080}', 300, 'Port Master'],
     ['FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}', 400, 'Image Alchemist'],

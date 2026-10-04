@@ -11,9 +11,17 @@ import { quests } from '../src/questpack.js';
 const pack = quests();
 const all = pack.quests;
 
-test('les six missions originales sont bien présentes, au bon endroit', () => {
+test('les six quêtes phares sont bien présentes, au bon endroit', () => {
+  // Les QUÊTES PHARES sont conservées — leur place dans la progression et leur
+  // rôle pédagogique. Leur FLAG, lui, change : il est dérivé du secret d'un
+  // joueur et le contenu est réécrit. Ce qui ne doit pas bouger, c'est la
+  // position et le rôle, pas la chaîne.
+  //
+  // Les cinq autres sont encore celles de la V1 : leur flag est donc encore
+  // celui de la V1, et ce test le vérifie. Quand elles seront réécrites, il
+  // devra changer — c'est normal, il verrouille un contenu, pas un contrat.
   const attendues = [
-    { flag: 'FLAG{HELLO_DOCKER_ENGINE_RUNNING}', titre: 'Initial Boot', module: 2 },
+    { flag: 'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}', titre: 'Le premier serveur de la librairie', module: 2 },
     { flag: 'FLAG{ALPINE_SH_INSPECTION_HERO}', titre: 'Infiltration Interactive', module: 3 },
     { flag: 'FLAG{PORT_MAPPING_WEB_EXPERT_8080}', titre: 'Port Master', module: 4 },
     { flag: 'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}', titre: 'Image Alchemist', module: 5 },
@@ -22,10 +30,16 @@ test('les six missions originales sont bien présentes, au bon endroit', () => {
   ];
   for (const a of attendues) {
     const q = pack.byFlag.get(a.flag);
-    assert.ok(q, `mission absente : ${a.flag}`);
+    assert.ok(q, `quête phare absente : ${a.flag}`);
     assert.equal(q.title, a.titre);
     assert.equal(q.module, a.module, `${a.titre} : module ${q.module} au lieu de ${a.module}`);
     assert.ok(q.flagship, `${a.titre} : doit être une quête phare`);
+  }
+  // Une quête phare par module, et toujours la dernière.
+  for (const m of pack.modules) {
+    const phares = m.quests.filter((q) => q.flagship);
+    assert.ok(phares.length <= 1, `module ${m.module} : ${phares.length} quêtes phares`);
+    if (phares.length) assert.equal(phares[0], m.quests.at(-1), 'la phare doit être la dernière');
   }
 });
 
@@ -65,11 +79,14 @@ test('le mot de passe n\'est écrit nulle part, et l\'énoncé le dit', () => {
   }
 });
 
-test('les six missions historiques gardent leurs techniques', () => {
-  // Les 6 missions du cahier des charges : titre, module et barème inchangés,
-  // mais le mot de passe n'est plus affiché — il se récupère par une commande.
+test('les quêtes phares gardent leur technique de récupération', () => {
+  // Par module, la technique avec laquelle l'élève va chercher son mot de
+  // passe. C'est le point pédagogique qui compte : on cherche avec la
+  // commande que l'atelier vient d'enseigner, pas avec une commande générique.
+  // Testé par module plutôt que par flag : le flag change à chaque
+  // réécriture, la technique reste.
   const attendues = {
-    'FLAG{HELLO_DOCKER_ENGINE_RUNNING}': ['Initial Boot', 2],
+    'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}': ['Le premier serveur de la librairie', 2],
     'FLAG{ALPINE_SH_INSPECTION_HERO}': ['Infiltration Interactive', 3],
     'FLAG{PORT_MAPPING_WEB_EXPERT_8080}': ['Port Master', 4],
     'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': ['Image Alchemist', 5],
@@ -82,6 +99,8 @@ test('les six missions historiques gardent leurs techniques', () => {
     assert.equal(q.title, titre);
     assert.equal(q.module, module);
     assert.ok(q.fetchHint.includes('/raw'), `${titre} : fetchHint manquant`);
+    assert.ok(q.fetchHint.includes('SERVER_IP'),
+      `${titre} : la commande doit viser le portail courant`);
   }
 });
 
@@ -109,9 +128,14 @@ test('chaque module récupère son secret par sa propre technique', () => {
   }
 });
 
-test('les six missions gardent leurs commandes clés du cahier des charges', () => {
+test('les quêtes phares gardent leurs commandes clés', () => {
+  // La technique de chaque quête phare ne doit pas disparaître en la
+  // réécrivant son texte. Le module 2 vient d'être réécrit : sa phare passe de
+  // `hello-world` à un vrai serveur web qui survit à un redémarrage, ce qui
+  // change le flag, le titre et la technique de récupération — mais la quête
+  // phare reste « faire tourner un service et le garder en vie ».
   const attendues = {
-    'FLAG{HELLO_DOCKER_ENGINE_RUNNING}': [/docker\s+version/, /docker\s+run\s+hello-world/, /busybox/],
+    'FLAG{VERDI_BOOT_PERSISTED_AFTER_RESTART}': [/docker\s+run\s+-d/, /-p\s+8080:80/, /nginx/, /curl/, /systemctl\s+restart/],
     'FLAG{ALPINE_SH_INSPECTION_HERO}': [/docker\s+run\s+-it/, /alpine/, /\bid\b/, /docker\s+rm/],
     'FLAG{PORT_MAPPING_WEB_EXPERT_8080}': [/-p\s+8080:80/, /nginx/, /docker\s+exec/, /curl/],
     'FLAG{DOCKERFILE_CHEF_CUSTOM_BUILD}': [/Dockerfile/, /docker\s+build/, /EXPOSE/],
@@ -123,6 +147,23 @@ test('les six missions gardent leurs commandes clés du cahier des charges', () 
     const texte = `${q.brief}\n${q.solution}\n${pack.hintsByQuest.get(q.id).join('\n')}`;
     for (const m of motifs) {
       assert.match(texte, m, `${q.title} : commande attendue non trouvée (${m})`);
+    }
+  }
+});
+
+test('les ateliers réécrits sont plus courts qu\'une heure', () => {
+  // Contrainte du cahier des charges : un atelier par séance, une heure max. Les
+  // ateliers 1 et 2 sont les seuls réécrits, les autres gardent le contenu V1
+  // qui dépassait déjà cette borne — le test suivant s'en occupe.
+  for (const numero of [1, 2]) {
+    const m = pack.modules.find((x) => x.module === numero);
+    const minutes = m.quests.reduce((a, q) => a + q.estMinutes, 0);
+    assert.ok(minutes <= 60,
+      `atelier ${numero} : ${minutes} min, plus d\'une heure`);
+    // Et la répartition doit tenir dans la séance : une quête par 20 min
+    // maximum, sinon la dernière est toujours sacrifiée.
+    for (const q of m.quests) {
+      assert.ok(q.estMinutes <= 20, `${q.id} : ${q.estMinutes} min, trop long pour une séance`);
     }
   }
 });
