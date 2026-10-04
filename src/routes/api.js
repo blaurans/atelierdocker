@@ -201,9 +201,16 @@ api.post('/register', plafonds.register, (req, res, next) => {
     const existing = findByTeam(team);
     if (existing) {
       if (existing.secret && existing.secret !== secret) {
+        // Le message dit ce qu'on peut faire, et dans quel ordre. « Ressaisis
+        // le secret » seul suffisait tant que le champ était visible partout ;
+        // il ne l'était qu'en Challenge, alors qu'un élève Sans stress se
+        // trouvait coincé avec une consigne impossible.
         throw new HttpError(409,
-          `Le pseudo « ${team} » est déjà pris en mode ${modeLabel(existing.mode)}. `
-          + 'Choisis un autre pseudo, ou ressaisis le secret pour reprendre ton score.');
+          `Le pseudo « ${team} » est protégé par un secret. `
+          + 'Reprends ta session : retape le même pseudo et le même secret, '
+          + 'et tu retrouveras ta progression. '
+          + 'Si tu ne t\'en souviens plus, prends un autre pseudo — celui-ci '
+          + 'restera verrouillé.');
       }
       if (secret && !existing.secret) setSecret(existing.id, secret);
       logEvent(existing.id, 'rejoin', existing.mode);
@@ -212,7 +219,9 @@ api.post('/register', plafonds.register, (req, res, next) => {
         team: existing.team,
         mode: existing.mode,
         token: existing.token,
-        message: `Pseudo « ${existing.team} » déjà enregistré en mode ${modeLabel(existing.mode)}.`,
+        message: `Pseudo « ${existing.team} » déjà enregistré en mode `
+          + `${modeLabel(existing.mode)} — on reprend ta progression là où tu `
+          + 'en étais.',
       });
     }
 

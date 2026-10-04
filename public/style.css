@@ -297,9 +297,25 @@ code, pre, .mono { font-family: var(--mono); }
 
 /* ── inscription express */
 
-.reg-row { display: grid; grid-template-columns: 1fr 260px auto; gap: 0.7rem; padding: 1.1rem 1.25rem 0; }
+/* Quatre colonnes depuis que le formulaire rapide a un champ secret : pseudo,
+   secret, mode, bouton. Le `1fr` va au pseudo — c'est le seul champ dont la
+   largeur aide à juger du texte. */
+.reg-row { display: grid; grid-template-columns: 1fr 1fr 260px auto; gap: 0.7rem; padding: 1.1rem 1.25rem 0; }
 .reg-msg { margin: 0.7rem 1.25rem 0; font-size: 0.82rem; min-height: 1.2rem; word-break: break-word; }
 .reg-err { color: var(--rose); }
+/* « Ce pseudo est déjà pris » n'est pas une erreur : c'est une reprise de
+   session. L'ambre dit « fais ceci », le rouge dit « renonce ». */
+.reg-warn { color: var(--amber); }
+
+/* L'explication sous un champ : ce que vaut cette saisie, et ce qu'il arrive
+   si on s'en passe. */
+.field-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem; line-height: 1.5; color: var(--fg-dim);
+}
+.field-note b { color: var(--amber); }
+.gate-form .field-note { margin: -0.2rem 0 0.4rem; }
+.reg-row .field-note { margin: 0.2rem 0 0; }
 
 input[type="text"], select {
   background: var(--bg-2); border: 1px solid var(--line); color: var(--fg);

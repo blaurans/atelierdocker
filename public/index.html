@@ -62,6 +62,7 @@
       <div class="panel-head"><h2><span class="ico">📝</span> Inscription rapide</h2></div>
       <form class="reg-row" id="regForm">
         <input id="inTeam" type="text" placeholder="Ton pseudo" autocomplete="off" required minlength="2" maxlength="32">
+        <input id="inSecret" type="text" placeholder="Secret (recommandé)" autocomplete="off">
         <select id="inMode">
           <option value="competitive">⚡ Challenge — indices payants</option>
           <option value="normal">🧘 Sans stress — indices gratuits</option>
@@ -69,6 +70,11 @@
         <button class="btn btn-primary" type="submit">Rejoindre le lab</button>
       </form>
       <p class="reg-msg" id="regMsg"></p>
+      <p class="field-note">
+        Le secret protège ton pseudo : sans lui, quelqu'un qui tape le même nom
+        récupère ta progression. Choisis-en un, et note-le — c'est ce qui te
+        rendra ta session si le poste redémarre.
+      </p>
       <details class="curl-help">
         <summary>Ou depuis le terminal, en <code>curl</code></summary>
         <pre><code id="curlExamples"></code></pre>
@@ -131,8 +137,14 @@
       <form class="gate-form" id="gateForm" hidden>
         <label for="gTeam">Ton pseudo</label>
         <input id="gTeam" type="text" placeholder="ex. Marine" autocomplete="off" required minlength="2" maxlength="32">
-        <label for="gSecret">Secret <span class="opt">(optionnel)</span></label>
-        <input id="gSecret" type="text" placeholder="pour protéger ton pseudo" autocomplete="off">
+        <label for="gSecret">Secret <span class="opt">(facultatif, mais fortement conseillé)</span></label>
+        <input id="gSecret" type="text" placeholder="un mot que seul tu connaisses" autocomplete="off">
+        <p class="field-note">
+          Sans secret, ton pseudo est une <b>clé publique</b> : n'importe qui le
+          tape et prend ta place avec ta progression. Le secret est ce qui
+          l'en empêche. Si tu en as déjà choisi un, recopie-le ici — c'est ce
+          qui te permet de retrouver ta session après un rechargement.
+        </p>
         <p class="gate-mode">Mode choisi : <b id="gateModeLabel"></b> <button type="button" class="linkish" id="changeMode">changer</button></p>
         <button class="btn btn-primary btn-lg" type="submit">Entrer dans le lab</button>
         <p class="reg-msg" id="gateMsg"></p>

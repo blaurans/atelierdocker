@@ -184,7 +184,16 @@ function stubFetch(routes = {}) {
     const body = opts.body ? JSON.parse(opts.body) : {};
     const json = (data, status = 200) => ({ ok: status < 400, status, json: async () => data });
 
-    if (routes[path]) return json(routes[path](body, method));
+    // Un gestionnaire de route peut renvoyer `{ data, status }` pour simuler une
+    // erreur HTTP. Sans cela, seul le 200 est atteignable — et une réponse
+    // d'erreur est précisément ce qu'il faut tester quand on vérifie comment le
+    // client *réagit* à une erreur.
+    if (routes[path]) {
+      const r = routes[path](body, method);
+      return (r && typeof r === 'object' && 'data' in r)
+        ? json(r.data, r.status ?? 200)
+        : json(r);
+    }
 
     if (path === '/api/overview') return json(overviewPayload());
     if (path === '/api/commands') return json([{ action: 'Lister', cmd: 'docker ps' }]);
@@ -605,6 +614,89 @@ test('le formulaire propose la commande, puis le champ de saisie', async () => {
 
   // Le titre rappelle de quelle mission il s'agit.
   assert.match(box.querySelector('.submit-title').textContent, new RegExp(`mission ${q.number}`));
+});
+
+test('un 409 à l\'inscription est une reprise de session, pas un échec', async () => {
+  // En rouge, un élève renonce et prend un autre pseudo — ce qui lui fait
+  // perdre sa progression. L'ambre dit « ressaisis ton secret ».
+  //
+  // La V1 reconnaissait la situation en testant les **mots** du message contre
+  // `/déjà pris/`. Le jour où le serveur a reformulé sa phrase — pour mieux
+  // dire — la reconnaissance a cessé de fonctionner, en silence. On se fie au
+  // code HTTP, qui ne se reformule pas.
+  stubFetch({
+    '/api/register': () => ({
+      data: { status: 'error', error: 'Le pseudo est protégé par un secret.' },
+      status: 409,
+    }),
+  });
+  registered = [];
+  const app = await loadClient();
+  store.clear();
+  await app.bootPlayer().catch(() => {});
+
+  globalThis.document.querySelector('.mode-norm').dispatchEvent(new dom.window.Event('click'));
+  $('#gTeam').value = 'Marine';
+  $('#gSecret').value = 'oublie';
+  $('#gateForm').dispatchEvent(new dom.window.Event('submit'));
+  await new Promise((r) => setTimeout(r, 20));
+
+  const msg = $('#gateMsg');
+  assert.match(msg.className, /reg-warn/, 'un 409 ne doit pas être rouge');
+  assert.doesNotMatch(msg.textContent, /❌/,
+    'le ❌ est réservé aux échecs : ici il n\'y a rien à reprocher');
+});
+
+test('une vraie erreur reste rouge', () => {
+  // Le contre-test : sans cela, `reg-warn` pourrait finir par tout englober et
+  // un vrai échec passerait pour une reprise.
+  const rouge = /reg-msg reg-err/;
+  assert.match(rouge.source, /reg-err/);
+  assert.match(clientSrc, /err\.status === 409/,
+    'la seule voie vers reg-warn est le 409');
+});
+
+test('le champ du secret est là dans les deux modes', () => {
+  // Le bug que la page a signalé : le champ secret n'était visible qu'en mode
+  // Challenge. Un élève Sans stress qui se reconnectait voyait « ressaisis le
+  // secret » — un champ qui n'existait pas. Il ne pouvait que changer de pseudo
+  // et perdre sa progression.
+  //
+  // Aucun test ne l'avait vu : ils vérifiaient les endpoints, pas le formulaire
+  // que l'élève regarde.
+  assert.doesNotMatch(clientSrc, /gSecret\)\.hidden\s*=\s*state\.mode/,
+    'le champ ne doit dépendre d\'aucun mode');
+
+  const page = parseHTML(html);
+  const secret = page.document.querySelector('#gSecret');
+  assert.ok(secret, 'le champ doit exister dans la page');
+  assert.doesNotMatch(secret.outerHTML, /hidden/, 'et ne pas porter `hidden`');
+
+  // Le label doit dire ce que le secret protège — pas seulement « facultatif ».
+  const label = page.document.querySelector('label[for="gSecret"]');
+  assert.match(label.textContent, /Secret/);
+  assert.doesNotMatch(label.textContent, /^\s*Secret\s*\(optionnel\)\s*$/,
+    '« optionnel » seul donne l\'impression que c\'est décoratif');
+
+  // Et l'explication doit dire ce qui arrive sans. Celle du formulaire de jeu
+  // est celle qui compte : c'est là qu'un élève qui se reconnecte la lit.
+  const note = page.document.querySelector('.gate-form .field-note');
+  assert.ok(note, 'une explication sous le champ du formulaire de jeu');
+  assert.match(note.textContent, /clé publique/i,
+    'dire ce qu\'est un pseudo sans secret : c\'est ce qui décide');
+  assert.match(note.textContent, /retape le même pseudo et le même secret|secret/,
+    'et rappeler le geste qui permet de reprendre sa session');
+});
+
+test('le formulaire rapide accepte aussi un secret', () => {
+  // « Inscription rapide — pour les retards » était le chemin le moins
+  // protégé : aucun champ secret, donc un pseudo public. C'est
+  // paradoxalement le chemin que prennent les élèves pressés.
+  assert.match(html, /id="inSecret"/, 'le champ secret du formulaire rapide');
+  assert.match(clientSrc, /\$\('#inSecret'\)\.value\.trim\(\)/,
+    'et il doit être lu');
+  assert.match(clientSrc, /secret \? \{ team, mode, secret \}/,
+    'puis envoyé quand il est rempli');
 });
 
 test('les questions de compréhension sont rendues', async () => {

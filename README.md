@@ -454,10 +454,16 @@ autonome, comme dans le cahier des charges.
 Le portail est conçu pour **une salle de TP**. Il est aujourd'hui accessible
 sur Internet, ce qui change trois choses par rapport à un portail de classe.
 
-- **Pas de mot de passe pour les élèves.** L'inscription renvoie un `token`
-  stocké dans `localStorage`. Si un secret est fourni, le pseudo est protégé ;
-  sinon, quiconque se connecte avec le même pseudo reprend la session.
-  **Exigez un secret en salle.**
+- **Un secret par élève, si vous le demandez.** L'inscription renvoie un `token`
+  stocké dans `localStorage`. **Sans secret, le pseudo est une clé publique** :
+  n'importe qui le tape et récupère la session avec la progression. Avec un
+  secret, le pseudo ne se reprend qu'avec le bon secret — c'est ce qui permet à
+  un élève de retrouver sa place après un rechargement, sur un autre poste.
+
+  Le champ est visible dans les deux modes depuis la V2 : il n'existait qu'en
+  Challenge, et un élève Sans stress se retrouvait avec « ressaisis le
+  secret » sous les yeux et aucun champ à saisir. **Exigez-le en salle**, et
+  dites aux élèves de le noter.
 - **L'administration est fermée, vraiment.** `ATELIER_ADMIN_KEY` — le mot de
   passe du `.env` — ouvre `/admin`, la vue de classe et toutes les actions.
   Trois garanties, dans l'ordre d'importance :
@@ -526,7 +532,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 207 tests
+npm test             # 213 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -601,7 +607,7 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail, jeu et /admin (vanilla, sans dépendance)
-test/                   207 tests : format du contenu, maîtrise, migration,
+test/                   213 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
                         API, rendu du portail, des QCM et de /admin,
                         administration, contrat, invariants, qualité du contenu

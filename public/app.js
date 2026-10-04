@@ -491,7 +491,6 @@ document.querySelectorAll('.mode').forEach((btn) => {
     const labels = { competitive: '⚡ Challenge', normal: '🧘 Sans stress' };
     $('#gateModeLabel').textContent = labels[state.mode];
     $('#gateForm').hidden = false;
-    $('#gSecret').hidden = state.mode !== 'competitive';
     $('#gTeam').focus();
     $('#gateMsg').textContent = '';
   });
@@ -521,8 +520,22 @@ $('#gateForm').addEventListener('submit', async (e) => {
     toast(res.message, res.status === 'created' ? 'ok' : 'info');
     await bootPlayer();
   } catch (err) {
-    msg.textContent = `❌ ${err.message}`;
+    // Le ❌ est réservé aux échecs : un 409 est une reprise de session.
+    msg.textContent = `${err.status === 409 ? '' : '❌ '}${err.message}`;
     msg.className = 'reg-msg reg-err';
+    // Un 409 sur l'inscription n'est pas un échec : c'est la reprise d'une
+    // session. Le dire change tout — en rouge, l'élève renonce et prend un
+    // autre pseudo, ce qui lui fait perdre sa progression.
+    //
+    // On se fie au **code HTTP**, pas aux mots du message : la V1 testait
+    // « déjà pris » contre une phrase, et le jour où le serveur a reformulé —
+    // pour mieux dire — le test a cessé de jouer son rôle. Un code HTTP ne se
+    // reformule pas.
+    if (err.status === 409) {
+      msg.className = 'reg-msg reg-warn';
+      $('#gSecret').hidden = false;
+      $('#gSecret').focus();
+    }
   }
 });
 
@@ -1506,6 +1519,10 @@ $('#btnQuit').addEventListener('click', () => {
 $('#regForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const team = $('#inTeam').value.trim();
+  // Le secret est facultatif, mais l'« inscription rapide » n'était pas le
+  // chemin le mieux protégé. Un élève pressé s'inscrit sans secret, et se
+  // retrouve avec un pseudo public.
+  const secret = $('#inSecret').value.trim();
   const mode = $('#inMode').value;
   const msg = $('#regMsg');
   msg.textContent = '';
@@ -1515,11 +1532,15 @@ $('#regForm').addEventListener('submit', async (e) => {
     return;
   }
   try {
-    const res = await api('/api/register', { method: 'POST', auth: false, body: { team, mode } });
+    const res = await api('/api/register', {
+      method: 'POST', auth: false,
+      body: secret ? { team, mode, secret } : { team, mode },
+    });
     msg.textContent = res.status === 'created'
       ? `✅ ${res.message} Ton token : ${res.token}`
       : `ℹ️ ${res.message}`;
     $('#inTeam').value = '';
+    $('#inSecret').value = '';
   } catch (err) {
     msg.textContent = `❌ ${err.message}`;
   }

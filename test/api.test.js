@@ -541,3 +541,53 @@ test('le flux SSE pousse un état au changement', async () => {
 
   ac.abort();
 });
+test('le serveur explique comment reprendre une session, au lieu de bloquer', async () => {
+  // Le message disait « ressaisis le secret pour reprendre ton score » sans
+  // dire comment, et proposait « un autre pseudo », qui fait perdre la
+  // progression. La phrase doit nommer l'action.
+  wipe();
+  await api('/api/register', {
+    method: 'POST', body: { team: 'Marine', mode: 'normal', secret: 'le-bon' },
+  });
+  const { status, json } = await api('/api/register', {
+    method: 'POST',
+    body: { team: 'Marine', mode: 'normal', secret: 'mauvais' },
+  });
+  assert.equal(status, 409);
+  assert.match(json.error, /même pseudo et le même secret/);
+  assert.match(json.error, /retrouveras ta progression/);
+  assert.doesNotMatch(json.error, /Choisis un autre pseudo/,
+    '« choisis un autre pseudo » est le conseil qui fait tout perdre');
+});
+
+test('un secret posé tardivement protège le pseudo', async () => {
+  wipe();
+  // Chemin réel : l'élève s'inscrit sans secret (champ caché en V1), puis
+  // quelqu'un tape son pseudo et prend sa session. Le seul remède est de
+  // pouvoir poser un secret ensuite — ce que `/api/register` fait déjà quand
+  // le pseudo existe sans secret.
+  const premier = await api('/api/register', {
+    method: 'POST', body: { team: 'SansSecret', mode: 'normal' },
+  });
+  assert.equal(premier.status, 201);
+
+  // Sans secret, la reprise donne le token : c'est le comportement documenté,
+  // et la raison pour laquelle le champ est désormais visible partout.
+  const reprise = await api('/api/register', {
+    method: 'POST', body: { team: 'SansSecret', mode: 'normal' },
+  });
+  assert.equal(reprise.json.status, 'exists');
+  assert.equal(reprise.json.token, premier.json.token);
+
+  // Avec le bon secret, on pose un secret : le pseudo devient protégé.
+  const avec = await api('/api/register', {
+    method: 'POST', body: { team: 'SansSecret', mode: 'normal', secret: 'a-moi' },
+  });
+  assert.equal(avec.status, 200);
+  const vole = await api('/api/register', {
+    method: 'POST', body: { team: 'SansSecret', mode: 'normal' },
+  });
+  assert.equal(vole.status, 409, 'un pseudo protégé refuse la reprise sans secret');
+});
+
+
