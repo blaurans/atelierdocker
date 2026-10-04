@@ -353,9 +353,24 @@ hint_index)` qui le garantit, pas le client.
 
 ### 2.5 Accès aux missions
 
-`GET /api/quests` renvoie le programme. Pour une quête donnée, l'API ne transmet
-**pas `hints`** — seulement `hint_count` (§ 1.5). Elle transmet `check` (questions et
-explications) et `recall` (`prompt` et `accept`, mais **pas** la réponse).
+`GET /api/quests` renvoie le programme. Pour une quête donnée :
+
+| Champ | Sort ? |
+|---|---|
+| `hint_count` | oui — le **nombre** d'indices |
+| `charge` | oui — le prix, pour l'afficher avant le clic |
+| `check` | **partiellement** — `id`, `kind`, `prompt`, `choices`, `required` |
+| `check[].answer` | **jamais** |
+| `check[].explanation` | **jamais** — seulement après une bonne réponse |
+| `recall` | **partiellement** — `id`, `prompt` |
+| `recall[].accept` | **jamais** |
+| `recall[].hint` | **jamais** — seulement après un échec |
+| `hints` | **jamais** (§ 1.5) |
+| `solution` | **jamais** avant validation |
+
+Les questions sont publiques parce que l'élève doit pouvoir les lire pour y
+répondre. Leur réponse ne l'est pas : la vérifier ne mesurerait rien si elle
+était dans l'onglet réseau.
 
 La correction (`solution`) n'est renvoyée que pour les missions validées :
 `"solution": done.has(q.id) ? q.solution : null`. Un élève qui la lisait avant

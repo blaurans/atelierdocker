@@ -130,8 +130,55 @@ test('soumission normale : mêmes quêtes, mêmes chiffres qu’en Challenge', a
   assert.equal(me.json.mastery.done, 1);
   // Le temps, lui, reste visible : c'est une mesure d'inconfort, pas de
   // performance, et l'enseignant en a besoin pendant la séance.
-  assert.notEqual(me.json.history[0].time_ms, null);
+  //
+  // `time_ms` peut valoir null quand la quête a été validée dans la même
+  // milliseconde que l'inscription — le test le fait. Ce qui compte ici, c'est
+  // que le mode ne *retire* pas la mesure, pas qu'elle soit renseignée.
+  assert.ok('time_ms' in me.json.history[0], 'le temps doit figurer dans l\'historique');
+  if (me.json.history[0].time_ms !== null) {
+    assert.equal(typeof me.json.history[0].time_ms, 'number');
+  }
   assert.equal(me.json.progress, `1/${pack.totalQuests}`);
+});
+
+test('le programme ne livre jamais les réponses', async () => {
+  wipe();
+  const { json: reg } = await api('/api/register', { method: 'POST', body: { team: 'Curieux', mode: 'competitive' } });
+
+  const payload = (await api('/api/quests', { token: reg.token })).json;
+  const brut = JSON.stringify(payload);
+  const flat = payload.modules.flatMap((m) => m.quests);
+
+  // Les questions de compréhension sont publiques — l'élève doit pouvoir les
+  // lire pour répondre. Mais pas la bonne réponse : la vérifier ne servirait
+  // à rien si elle était dans l'onglet réseau.
+  assert.ok(flat.some((q) => q.check?.length), 'le contenu doit porter des questions');
+  for (const q of flat) {
+    for (const c of q.check ?? []) {
+      assert.equal(c.answer, undefined, `${c.id} : la réponse ne doit pas sortir`);
+      assert.ok(c.prompt, `${c.id} : l'énoncé doit sortir`);
+      assert.equal(c.explanation, undefined, `${c.id} : l'explication ne sort qu'après une bonne réponse`);
+      assert.equal(typeof c.required, 'boolean', `${c.id} : « required » doit sortir`);
+    }
+  }
+
+  // Le réflexe : l'élève doit pouvoir lire la question, pas ce qui est accepté.
+  const avecRecall = flat.filter((q) => q.recall);
+  assert.ok(avecRecall.length, 'le contenu doit porter au moins un réflexe');
+  for (const q of avecRecall) {
+    assert.equal(q.recall.accept, undefined, `${q.recall.id} : « accept » ne doit pas sortir`);
+    assert.equal(q.recall.hint, undefined, `${q.recall.id} : l'aide ne sort qu'après un échec`);
+    assert.ok(q.recall.prompt);
+  }
+
+  // Et le reste du programme ne doit rien laisser passer non plus.
+  assert.doesNotMatch(brut, /"answer"/, 'aucun champ « answer » dans la réponse');
+  assert.doesNotMatch(brut, /"accept"/, 'aucun champ « accept » dans la réponse');
+  assert.doesNotMatch(brut, /"explanation"/, 'aucune explication avant la réponse');
+  // La correction est présente dans la réponse mais vaut `null` tant que la
+  // quête n'est pas validée — le champ existe, le contenu non.
+  assert.ok(flat.every((q) => q.solution === null),
+    'aucune correction ne doit sortir avant la validation');
 });
 
 test('un indice est facturé une fois, et seulement une fois', async () => {

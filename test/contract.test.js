@@ -116,15 +116,31 @@ test('les indices ne sortent jamais par le payload du programme', () => {
   // qu'un nombre. Si `hints` réapparaît dans la réponse, la facturation
   // n'existe plus — l'élève lit tout dans l'onglet réseau.
   const bloc = section('### 2.5');
-  // La formulation evolves ( emphase Markdown, retour à la ligne ) ; on vérifie
-  // l'idée, pas la typographie.
-  assert.match(bloc, /ne transmet[\s\S]{0,30}`?hints`?/);
-  assert.match(bloc, /hint_count/);
+  // Le contrat énumère les interdits dans un tableau (§ 2.5) plutôt que dans
+  // une phrase : la liste devient lisible et invérifiable par un test.
+  assert.match(bloc, /`hints`[\s\S]{0,80}jamais/i, '« hints » ne doit pas sortir');
+  assert.match(bloc, /`hint_count`/, '« hint_count » doit être documenté');
 
   const construction = api.slice(api.indexOf('modules: pack.modules.map'));
   assert.doesNotMatch(construction, /^\s*hints:/m,
     'la construction de la réponse ne doit pas exposer `hints`');
   assert.match(construction, /hint_count: q\.hint_count/);
+});
+
+test('le contrat énumère ce qui sort du programme, et ce qui n\'en sort pas', () => {
+  const bloc = section('### 2.5');
+  // Les interdits doivent être nommés explicitement : c'est ce qui empêche un
+  // `...q` forget de réintroduire une réponse dans le payload.
+  for (const champ of ['check[].answer', 'check[].explanation', 'recall[].accept',
+    'recall[].hint', 'hints', 'solution']) {
+    assert.ok(bloc.includes(champ), `le contrat ne dit pas que « ${champ} » ne sort pas`);
+    const ligne = bloc.split('\n').find((l) => l.includes(`\`${champ}\``));
+    assert.ok(ligne && /jamais/i.test(ligne), `« ${champ} » doit être marqué comme ne sortant pas`);
+  }
+  // Et ce qui doit sortir, pour que l'interface puisse fonctionner.
+  for (const champ of ['hint_count', 'charge', 'required', 'choices']) {
+    assert.ok(bloc.includes(champ), `le contrat ne dit pas que « ${champ} » sort`);
+  }
 });
 
 test('les indices sont gardés hors du graphe d\'objets des quêtes', () => {

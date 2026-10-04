@@ -41,8 +41,8 @@ export default {
 Tu es sur ta VM Ubuntu Server. Avant d'y installer quoi que ce soit, tu vas avoir
 besoin de trois informations : **quelle version d'Ubuntu**, **quelle
 architecture**, et **combien de place il reste**. L'architecture surtout —
-c'est elle qui décide si les paquets de Docker qu'on installeraASMOKE plus
-tard correspondent à ta machine.
+c'est elle qui décide si les paquets de Docker qu'on installera à
+l'atelier suivant correspondent à ta machine.
 
 **Ta mission**
 
@@ -89,7 +89,7 @@ commande dans ton terminal. Le mot de passe s'affiche : envoie-le tel quel au
 portail.`,
       hints: [
         "`cat` affiche le contenu d'un fichier. Celui qui décrit ta distribution est un fichier texte ordinaire, lisible.",
-        "`uname` interroge le noyau. L'option qui veut dire « machine » est la seule lettre de `uname -m`.",
+        "`uname` interroge le noyau. Son option veut dire « machine » : une seule lettre.",
         "La mémoire et le disque ne se lisent pas avec la même commande : l'une vient de `/proc`, l'autre du système de fichiers.",
       ],
       charge: { perHint: 1, autonomy: [1, 1, 0] },
@@ -195,7 +195,7 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 
 **5. Ta session n'est pas encore « dans le groupe »**
 
-Le paquet s'installe avec \`sudo\`, mais ton compte ordinary ne fait pas partie
+Le paquet s'installe avec \`sudo\`, mais ton compte n'appartient pas encore
 du groupe \`docker\`. Deux options : tu utilises \`sudo docker …\` pour tout le
 reste de l'atelier, ou tu actives le groupe pour ta session en cours :
 
@@ -359,7 +359,7 @@ export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-03-premier-conteneur/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
 \`\`\``,
       hints: [
-        "Le nom du conteneur appears dans la sortie de `docker ps -a`, colonne NAMES. Copie-le de là pour le `docker rm`.",
+        "Le nom du conteneur est dans la colonne `NAMES` de la sortie précédente. C'est lui qu'il faut passer à `docker rm`.",
         "`docker run` sans `--rm` laisse le conteneur derrière lui. C'est voulu ici : on veut le voir.",
         "Les deux « Hello from Docker! » ne viennent pas du même endroit. L'un vient de l'image, l'autre du démon — compare leur position dans la sortie.",
       ],

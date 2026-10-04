@@ -249,6 +249,29 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
           // Si `hints` réapparaît ici, la facturation cesse d'exister — l'élève
           // lit les trois dans l'onglet réseau. `hints_count` plus bas.
           hint_count: q.hint_count,
+          // Ce que coûte chaque indice, pour que le client affiche le prix
+          // AVANT le clic. Sans ça, l'élève découvre qu'il a payé en
+          // regardant son score après coup — et le mode Challenge devient une
+          // surprise, ce qui est exactement ce qu'on ne veut pas.
+          charge: q.charge,
+          // Les questions de compréhension et le réflexe : le contenu est
+          // public, seule la réponse est vérifiée côté serveur. Le `answer` de
+          // chaque question n'est pas transmis — voir `POST .../check`.
+          // Les questions et le réflexe, **sans les réponses**. `check` et `recall`
+          // portent un champ `answer` / `accept` ; les envoyer ici les
+          // giveawayait dans l'onglet réseau, et la vérification ne
+          // mesurerait plus rien. On les reconstruit donc champ par champ —
+          // c'est le prix à payer pour ne pas dépendre d'un `...q` forget.
+          check: q.check.map((c) => ({
+            id: c.id,
+            kind: c.kind,
+            prompt: c.prompt,
+            ...(c.kind === 'mcq' ? { choices: c.choices } : {}),
+            required: c.required,
+          })),
+          recall: q.recall
+            ? { id: q.recall.id, prompt: q.recall.prompt }
+            : null,
           // La commande de récupération, prête à coller. Voir `origin()` plus
           // haut pour pourquoi c'est l'origine complète plutôt que le seul
           // hôte. Le préfixe est remplacé en entier, « https://SERVER_IP »

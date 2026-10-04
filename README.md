@@ -471,7 +471,7 @@ docker compose up -d
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 130 tests
+npm test                  # 132 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -533,7 +533,7 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   130 tests : maîtrise, migration, API, rendu, contrat,
+test/                   132 tests : maîtrise, migration, API, rendu, contrat,
                         invariants, qualité du contenu, plafonds de débit
 docs/CONTRACTS.md       contrat de données et d'API
 ```
