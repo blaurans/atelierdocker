@@ -75,8 +75,8 @@ export function createApp() {
 export function start() {
   const pack = quests();
   log('──────────────────────────────────────────────');
-  log('🐳  Docker Ops Race — The Container Arena');
-  log(`📚  ${pack.modules.length} modules · ${pack.totalQuests} quêtes · ${pack.totalPoints} points`);
+  log('🐳  Atelier Docker');
+  log(`📚  ${pack.modules.length} ateliers · ${pack.totalQuests} quêtes`);
   log(`🗄️   ${config.dbFile}`);
   log(`🔑  administration : ${config.adminKey ? 'protégée par clé' : 'ouverte (défaut lab)'}`);
   log('──────────────────────────────────────────────');

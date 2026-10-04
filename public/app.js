@@ -1,5 +1,5 @@
 /**
- * Docker Ops Race — client.
+ * Atelier Docker — client.
  *
  * Deux vues dans une page :
  *   #portal  projection pour l'enseignant (podium + suivi), alimentée en SSE
@@ -11,7 +11,11 @@
 
 import { renderMarkdown } from '/md.js';
 
-const STORE_KEY = 'docker-ops-race:v1';
+// La clé a changé avec la V2 : un élève qui avait une session V1 enregistrée
+// sous l'ancienne clé se voit demander de s'inscrire à nouveau. C'est
+// volontaire — les deux portails ont des bases distinctes, et un jeton de la
+// V1 n'y existe pas.
+const STORE_KEY = 'atelier-docker:v2';
 
 const state = {
   token: null,
@@ -208,7 +212,6 @@ function renderPortal(data) {
   const { competitive, normal, meta } = data;
 
   $('#questCount').textContent = meta.total_quests;
-  $('#totalPoints').textContent = meta.total_points;
 
   renderPodium(competitive, meta);
   renderCompetitive(competitive, meta);

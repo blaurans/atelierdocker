@@ -279,7 +279,10 @@ test('le portail affiche le podium et le tableau de suivi', async () => {
   assert.match($('#normBody').textContent, /2\/26/);
 
   assert.equal(text('#questCount'), String(pack.totalQuests));
-  assert.equal(text('#totalPoints'), String(pack.totalPoints));
+  // Le total de points a disparu de la bannière : le score et la course
+  // sont remplacés par la maîtrise, et afficher un total de points ici
+  // inviterait à les additionner.
+  assert.equal(text('#totalPoints'), '');
 });
 
 test('le portail gère le vide sans casser', async () => {
@@ -330,7 +333,7 @@ test('le parcours se construit depuis les données du serveur', async () => {
 test('le jeton est toujours affiché et copiable', async () => {
   stubFetch();
   registered = [];
-  store.set('docker-ops-race:v1',
+  store.set('atelier-docker:v2',
     JSON.stringify({ token: 'dq_testtoken', team: 'Testeur', mode: 'competitive' }));
   const app = await loadClient();
   await app.bootPlayer();
@@ -513,7 +516,7 @@ test('le joueur d\'un autre poste reprend sa session', async () => {
   stubFetch();
   registered = [pack.quests[0].id];
   store.clear();
-  store.set('docker-ops-race:v1', JSON.stringify({ token: 'dq_ancien', team: 'Testeur', mode: 'competitive' }));
+  store.set('atelier-docker:v2', JSON.stringify({ token: 'dq_ancien', team: 'Testeur', mode: 'competitive' }));
   const app = await loadClient();
   await app.bootPlayer();
 

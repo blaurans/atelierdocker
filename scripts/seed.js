@@ -21,7 +21,7 @@ const pack = args.includes('--reload') ? await reloadQuestpack() : quests();
 const before = counts();
 
 log('──────────────────────────────────────────────');
-log('🐳  Docker Ops Race — préparation de la base');
+log('🐳  Atelier Docker — préparation de la base');
 log(`📚  ${pack.modules.length} modules · ${pack.totalQuests} quêtes · ${pack.totalPoints} points`);
 log(`🗄️   joueurs: ${before.players} · validations: ${before.completions}`);
 
