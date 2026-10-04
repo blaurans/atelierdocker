@@ -1,0 +1,88 @@
+name: Vérifications
+
+# Le contenu des quêtes est du JavaScript : une faute de frappe dans un flag,
+# un `order` dupliqué ou une explication trop courte empêche le serveur de
+# démarrer. Sur une URL publique, ce serait découvert par un élève devant
+# trente collègues — ou pire, par l'enseignant la veille d'un cours.
+#
+# C'est la raison d'être de ce fichier. La réécriture des 27 quêtes a d'ailleurs
+# montré que les tests unitaires ne suffisent pas : ils ne lancent pas Docker,
+# et le seul contrôle qui exécute réellement les 27 commandes de récupération
+# (`npm run check-fetchhints`) reste manuel.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Suite de tests
+        run: npm test
+
+      - name: Valider le contenu des quêtes
+        run: npm run check-content
+
+      - name: Construire l'image
+        run: docker build -t atelier-docker:ci .
+
+      - name: Vérifier que l'image démarre et sert le programme
+        run: |
+          docker run -d --name test -p 127.0.0.1:8099:8000 \
+            -e ADMIN_KEY=ci -e RATE_LIMIT=off \
+            atelier-docker:ci
+          # Le démarrage doit être immédiat : une erreur de contenu fait
+          # boucler le conteneur, et c'est exactement ce qu'on veut voir ici.
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8099/healthz > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8099/healthz
+          curl -sf http://127.0.0.1:8099/api/quests | head -c 200
+          echo
+          docker logs test
+          docker rm -f test
+
+  # Le contrôle des 27 commandes de récupération est le seul qui prouve que le
+  # jeu marche sur une vraie machine. Il est ici plutôt que dans les tests
+  # unitaires parce qu'il est lent — quelques minutes — et qu'il échoue si la
+  # machine n'a pas de Docker utilisable.
+  #
+  # On le lance sur `main` uniquement, et en continu : il va chercher le
+  # portail réel, et il inscrit un joueur. Une exécution par jour suffit à
+  # attraper une régression ; à chaque commit, ce serait du bruit.
+  commandes:
+    needs: tests
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - run: npm ci
+
+      - name: Rejouer les 27 commandes de récupération de mot de passe
+        run: npm run check-fetchhints
+
+      - name: Nettoyer le joueur de vérification
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "X-Arena-Admin: ${{ secrets.ATELIER_ADMIN_KEY }}" \
+            https://atelierdocker.laurans.org/api/admin/delete/Verif_000000 \
+            || echo "aucun joueur à nettoyer"
+        continue-on-error: true

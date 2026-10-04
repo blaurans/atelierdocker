@@ -466,12 +466,25 @@ docker compose up -d
 
 ---
 
+## Vérifications automatiques
+
+`.github/workflows/verifications.yml` lance, à chaque push et à chaque demande
+de fusion : la suite de tests, la validation du contenu, la construction de
+l'image, et le démarrage réel de ce qui vient d'être construit.
+
+Un second job, sur `main` seulement, rejoue **les 27 commandes de récupération
+de mot de passe** contre le portail de production. C'est le seul contrôle qui
+prouve que le jeu marche sur une vraie machine — et il avait.attrapé un bug que
+les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
+
+---
+
 ## Développement
 
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 158 tests
+npm test                  # 159 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
@@ -539,9 +552,9 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   158 tests : format du contenu, maîtrise, migration,
-                        règles Markdown, gitignore, API, rendu, contrat,
-                        invariants, qualité du contenu, plafonds de débit
+test/                   159 tests : format du contenu, maîtrise, migration,
+                        règles Markdown, gitignore, synchronisation des scripts,
+                        API, rendu, contrat, invariants, qualité du contenu
 docs/CONTRACTS.md       contrat de données et d'API
 ```
 

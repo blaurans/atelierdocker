@@ -290,6 +290,30 @@ test('les totaux d\'ateliers croissent strictement', async () => {
   }
 });
 
+test('les scripts remplacent l\'origine comme le serveur le fait', async () => {
+  // Le script de vérification rejouait les 27 commandes hors du portail réel.
+  // Il substituait `SERVER_IP` par l'origine, ce qui produisait
+  // `https://https://…` : les 27 échouaient alors qu'aucune n'était cassée.
+  //
+  // Le bug est invisible pour les tests unitaires — ils ne lancent pas Docker —
+  // et il avait survécu au passage en HTTPS parce que personne n'avait lancé le
+  // script. Il est mort ici, sur la règle qui l'a laissé passer.
+  const script = read('scripts/check-fetchhints.js');
+
+  assert.ok(script.includes("replaceAll('https://SERVER_IP'"),
+    'le script doit remplacer le préfixe complet, comme src/routes/api.js');
+  assert.doesNotMatch(script, /replaceAll\('SERVER_IP'/,
+    'substituer SERVER_IP seul produirait « https://https://… »');
+
+  // Et les deux implémentations doivent rester synchronisées : c'est le
+  // contrat § 2.5. Si l'une change sans l'autre, ce test tombe.
+  const api = read('src/routes/api.js');
+  assert.ok(api.includes("replaceAll('https://SERVER_IP'"),
+    'le serveur doit remplacer le préfixe complet');
+  assert.ok(api.includes("replaceAll('http://SERVER_IP'"),
+    'et aussi la variante http, au cas où un contenu la porterait');
+});
+
 test('le contrat et le README annoncent les mêmes chiffres', () => {
   const readme = read('README.md');
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);

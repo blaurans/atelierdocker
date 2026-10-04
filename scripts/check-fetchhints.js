@@ -21,7 +21,25 @@ const B = process.argv[2] ?? 'https://atelierdocker.laurans.org';
 // derrière Caddy, donc les commandes doivent repartir en https et sans port.
 // Avec TRUST_PROXY=1, `req.protocol` vaut https et `req.hostname` ne porte
 // pas de port — voir src/routes/api.js, champ fetch_hint.
-const HOSTNAME = new URL(B).origin;
+const ORIGINE = new URL(B).origin;
+
+/**
+ * Rend la commande jouable : le contenu porte `https://SERVER_IP`, et il faut
+ * le remplacer par l'origine **complète**, préfixe compris.
+ *
+ * Substituer seulement `SERVER_IP` produirait `https://https://…`, et le script
+ * échouerait sur les 27 quêtes sans qu'aucune ne soit réellement cassée — ce
+ * qui est arrivé, et a coûté une lecture du rapport d'échec avant de voir que le
+ * portail répondait très bien.
+ *
+ * La même correction est appliquée côté serveur (`src/routes/api.js`, helper
+ * `origin()`). Les deux doivent rester synchronisés : c'est le contrat § 2.5.
+ */
+const jouable = (cmd, jeton) => cmd
+  .replaceAll('https://SERVER_IP', ORIGINE)
+  .replaceAll('http://SERVER_IP', ORIGINE)
+  .replaceAll('PLAYER_TOKEN', jeton)
+  .replaceAll('dq_xxxxxxxxxxxxxxxx', jeton);
 
 const { quests } = await import('../src/questpack.js');
 const pack = quests();
@@ -75,12 +93,7 @@ let ok = 0;
 const echecs = [];
 
 for (const q of pack.quests) {
-  // Substitution identique à celle du client.
-  // Substitution identique à celle du client (src/routes/api.js).
-  const cmd = q.fetchHint
-    .replaceAll('SERVER_IP', HOSTNAME)
-    .replaceAll('PLAYER_TOKEN', jeton)
-    .replaceAll('dq_xxxxxxxxxxxxxxxx', jeton);
+  const cmd = jouable(q.fetchHint, jeton);
 
   const debut = Date.now();
   const r = await sh(cmd);
