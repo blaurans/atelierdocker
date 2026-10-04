@@ -187,12 +187,25 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
       if (!req(FLAG.test(flag), `flag invalide : « ${q.flag} » (attendu FLAG{MAJUSCULES_ET_TIRETS_BAS})`)) continue;
       if (byFlag.has(flag)) errors.push(`${at} : flag dupliqué avec ${byFlag.get(flag).id}`);
 
-      // garde-fou sur le Markdown supporté par le mini-renderer du client
-      if (/^\s*\|/m.test(md)) errors.push(`${at} : tableau Markdown interdit dans « brief »`);
-      if (/<\/?[a-z][a-z0-9]*\s*\/?>/i.test(md)) errors.push(`${at} : HTML interdit dans « brief »`);
-      if (/!\[/.test(md)) errors.push(`${at} : image Markdown interdite dans « brief »`);
-      if (/^#\s+/gm.test(md) && (md.match(/^#\s+/gm) || []).length > 1) {
-        errors.push(`${at} : un seul titre « # » autorisé dans « brief »`);
+      // Garde-fous sur le Markdown supporté par le mini-renderer du client.
+      //
+      // Ils s'appliquent au **prose**, pas aux blocs de code. Un énoncé qui
+      // montre une sortie de commande contient naturellement des lignes
+      // commençant par « # » (commentaires shell), des « | » ( pipes) et des
+      // chevrons (redirections) — et aucune de ces lignes n'est du Markdown.
+      //
+      // Sans cette distinction, la règle « un seul titre » rejetait tout énoncé
+      // qui montrait une sortie avec les commentaires usuels, et la règle
+      // « pas de tableau » aurait rejeté le premier `docker images | head` écrit
+      // en début de ligne. C'est arrivé en rédigeant l'atelier 6.
+      const prose = md.replace(/```[\s\S]*?```/g, '');
+
+      if (/^\s*\|/m.test(prose)) errors.push(`${at} : tableau Markdown interdit dans « brief »`);
+      if (/<\/?[a-z][a-z0-9]*\s*\/?>/i.test(prose)) errors.push(`${at} : HTML interdit dans « brief »`);
+      if (/!\[/.test(prose)) errors.push(`${at} : image Markdown interdite dans « brief »`);
+      const titres = prose.match(/^#\s+/gm) ?? [];
+      if (titres.length > 1) {
+        errors.push(`${at} : un seul titre « # » autorisé dans « brief » (${titres.length} trouvés)`);
       }
 
       // ── le mot de passe ne doit jamais être dans l'énoncé ──────────────

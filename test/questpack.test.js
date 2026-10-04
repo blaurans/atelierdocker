@@ -56,7 +56,7 @@ test('les six missions du cahier des charges sont conservées avec leur barème'
     ['FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}', 200, 'Le conteneur est isolé'],
     ['FLAG{VERDI_STACK_SITE_AND_DB_ISOLATED}', 300, 'Deux services, une machine'],
     ['FLAG{VERDI_1_0_REPRODUCIBLE_AND_TAGGED}', 400, 'La méthode de la librairie'],
-    ['FLAG{DATA_PERSISTENCE_VAULT_RESCUE}', 500, 'Persistence Guardian'],
+    ['FLAG{VERDI_VOLUME_NAMED_DURABLE_AND_LISTED}', 500, 'Le volume de Docker'],
     ['FLAG{COMPOSE_ORCHESTRATION_TITAN}', 600, 'Compose Overlord'],
   ];
   for (const [flag, points, title] of attendus) {
