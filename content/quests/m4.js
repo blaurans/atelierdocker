@@ -380,7 +380,7 @@ comme \`verdi-db\` n'y fonctionnera pas, même si le conteneur s'appelle ainsi.
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
 \`\`\``,
       hints: [
         "Le réseau doit être **créé** avant. Sur `bridge`, le résolveur de noms n'installe qu'une entrée : celle du gateway.",
@@ -439,7 +439,7 @@ docker network rm reseau-verdi
 \`\`\``,
       teaches: ['docker network create', '--network', 'résolution DNS interne', 'nslookup', 'réseau privé'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"`,
       checkpoint: "Tu as compris quand tu sais pourquoi un nom de conteneur ne se résout pas hors de son réseau — et pourquoi c'est une bonne nouvelle.",
     },
 
@@ -531,7 +531,7 @@ C'est la seule chose à retenir de l'atelier : une IP change, un nom non.
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"
 \`\`\``,
       hints: [
         "Les deux conteneurs doivent être sur le **même** réseau. Si le site répond mais ne trouve pas la base, c'est qu'il est resté sur `bridge`.",
@@ -606,7 +606,7 @@ docker network rm reseau-verdi
 \`\`\``,
       teaches: ['pile de conteneurs', 'réseau privé', 'port unique publié', 'indépendance', 'point de défaillance'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm --network reseau-verdi alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m4-04-deux-services/raw?token=$ARENA_TOKEN"`,
       checkpoint: "Tu as compris quand tu sais expliquer à la direction pourquoi le port de la base est fermé, et ce qu'il faudrait mettre en place pour que sa panne n'arrête pas le site.",
     },
   ],

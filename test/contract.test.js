@@ -166,6 +166,29 @@ test('la compréhension ne bloque pas la validation', () => {
 
 /* ---------------------------------------------------------------------- piles */
 
+test('le mot de passe se récupère sans dépendre de l\'avancement', async () => {
+  // Une commande de récupération qui suppose un état créé par la quête
+  // elle-même est un piège : l'élève qui saute directement au formulaire, ou
+  // qui a nettoyé derrière lui, ne peut plus valider. Vérifié après coup sur
+  // l'atelier 4, où `--network reseau-verdi` était requis alors que ce réseau
+  // est précisément ce que l'étape 1 de la quête fait créer.
+  const { quests } = await import('../src/questpack.js');
+  const interdits = [
+    [/--network\s+(?!none\b)/, 'un réseau nommé, qui n\'existe pas encore'],
+    [/docker\s+network\s+create/, 'la création d\'un réseau, que l\'atelier enseigne'],
+    [/-v\s+[^\s]*\/(data|home)\b/, 'un volume monté, qui doit préexister'],
+  ];
+  for (const q of quests().quests) {
+    for (const [motif, quoi] of interdits) {
+      assert.doesNotMatch(q.fetchHint, motif,
+        `${q.id} : la récupération suppose ${quoi}`);
+    }
+    // Et la commande doit suffire à elle seule.
+    assert.match(q.fetchHint, /SERVER_IP/, `${q.id} : la commande doit viser le portail`);
+    assert.match(q.fetchHint, /dq_x{10}/, `${q.id} : la commande doit porter le jeton`);
+  }
+});
+
 test('le contrat annonce les limites de débit, le code les applique', () => {
   for (const [nom, limite] of [
     ['register', 12], ['submit', 40], ['quests', 120], ['live', 300], ['api', 600],
