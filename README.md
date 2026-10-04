@@ -1,7 +1,7 @@
 # 🐳 Atelier Docker
 
 Serious game d'apprentissage de Docker **pour des étudiants qui n'ont jamais
-tapé une commande Docker**. 7 ateliers, 26 quêtes, deux modes au choix dès
+tapé une commande Docker**. 7 ateliers, 27 quêtes, deux modes au choix dès
 l'inscription.
 
 Ce qui a changé par rapport à Docker Ops Race : il n'y a plus de points ni de
@@ -72,7 +72,7 @@ valider.
 
 ### Aucun verrou, dans les deux modes
 
-Les 26 missions sont accessibles dès la première seconde. Un étudiant bloqué
+Les 27 missions sont accessibles dès la première seconde. Un étudiant bloqué
 sur la mission 7 peut lire la 12, consulter une correction antérieure, ou
 attaquer directement le boss final. **Vous validez dans l'ordre que vous voulez.**
 
@@ -291,7 +291,7 @@ dans le presse-papiers, ce qui évite de le retaper dans une commande `curl`.
 Le jeton est tronqué à l'affichage : sur un vidéoprojecteur, on ne laisse pas
 traîner les identifiants en clair.
 
-**Le plan, à gauche** — les 7 modules et les 26 missions, avec le compteur de
+**Le plan, à gauche** — les 7 modules et les 27 missions, avec le compteur de
 progression. Une mission validée porte un ✅, la suivante à faire est signalée
 en haut par un encadré « Par où continuer ». Toutes les missions sont
 accessibles : rien n'est verrouillé.
@@ -484,19 +484,24 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test                  # 170 tests
-npm run dev               # rechargement à chaud
-npm run check-content     # valide que le contenu est chargeable
-npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
-npm run check-fetchhints # REJOUE les 26 commandes pour de vrai (demande Docker)
+npm test             # 171 tests
+npm run dev          # rechargement à chaud
+npm run check-content # valide que le contenu est chargeable
+npm run smoke        # joue les 27 missions, affiche la maîtrise
+npm run check-fetchhints        # REJOUE les 27 commandes (demande Docker)
+npm run nettoie-verif          # purge les joueurs de vérification du portail
 ```
 
 > **`npm run check-fetchhints` est le seul test qui prouve que le jeu marche
 > sur une vraie machine.** Il crée un joueur, exécute la commande de
-> récupération de chacune des 26 missions dans un conteneur jetable, et
-> affiche le temps de chacune. Lancez-le sur un **poste étudiant** avant un
-> TP — c'est là que ça échoue, pas sur le serveur.
-```
+> récupération de chacune des 27 missions dans un conteneur jetable, et
+> affiche le temps de chacune. Il supprime son joueur en sortant, même en cas
+> d'échec. Lancez-le sur un **poste étudiant** avant un TP — c'est là que ça
+> échoue, pas sur le serveur.
+>
+> Contre un portail déployé, il faut `ATELIER_ADMIN_KEY` pour que le ménage
+> passe : sans la clé, le script vous le dit plutôt que de laisser un joueur
+> fantôme dans le menu de suivi de l'enseignant.
 
 ### Ajouter une mission
 
@@ -552,7 +557,7 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 portail + jeu (vanilla, sans dépendance)
-test/                   170 tests : format du contenu, maîtrise, migration,
+test/                   171 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
                         API, rendu du portail et des QCM, contrat, invariants,
                         qualité du contenu
@@ -581,8 +586,8 @@ touche jamais le code.
 
 | Point | PDF d'origine | Ici | Pourquoi |
 |---|---|---|---|
-| Périmètre | 6 missions | 26 en 7 ateliers | demande « parcours complet » |
-| Base | Python en mémoire, perdue au redémarrage | SQLite sur volume | la maîtrise survivent |
+| Périmètre | 6 missions | 27 en 7 ateliers | demande « parcours complet » |
+| Base | Python en mémoire, perdue au redémarrage | SQLite sur volume | les mesures survivent |
 | Portail | rechargement toutes les 4 s | SSE, mise à jour instantanée | réactivité |
 | Notation | points, podium, bonus de rapidité | **maîtrise** : progression, autonomie, compréhension | le score mesurait la promotion, pas l'élève |
 | Classement | podium par mission | **aucun** | on ne classe pas des élèves |

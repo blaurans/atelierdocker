@@ -14,6 +14,7 @@
     "seed": "node --no-warnings=ExperimentalWarning scripts/seed.js",
     "check-content": "node scripts/check-content.js",
     "check-fetchhints": "node scripts/check-fetchhints.js",
+    "nettoie-verif": "node scripts/nettoie-verif.js",
     "smoke": "node scripts/smoke.js",
     "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
   },

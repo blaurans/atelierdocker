@@ -261,6 +261,36 @@ test('tout texte du contenu qui porte un littéral est rendu jouable', () => {
     'la variable du brief doit être remplacée, sinon elle reste vide');
 });
 
+test('le ménage des joueurs de vérification est exact et exhaustif', () => {
+  // Deux défauts trouvés en regardant `/api/overview` en production : le script
+  // de vérification visait « Verif » et le job de CI visait « Verif_000000 ».
+  // Aucun des deux ne supprimait quoi que ce soit — chaque exécution laissait
+  // un joueur de plus dans le menu de suivi de l'enseignant.
+  const verif = read('scripts/check-fetchhints.js');
+  assert.match(verif, /const equipe = `Verif_/, 'le nom tiré au sort doit être retenu');
+  assert.match(verif, /admin\/delete\/\$\{equipe\}/,
+    'le ménage doit viser ce nom, pas un nom deviné');
+  // Et dans les deux cas — une vérification en échec laisse justement la trace
+  // qu'on ne veut pas voir, parce que c'est celle qu'on relance en boucle.
+  const sortie = verif.indexOf('process.exit(echecs.length ? 1 : 0)');
+  const menage = verif.indexOf('await menage()');
+  assert.ok(menage !== -1 && menage < sortie,
+    'le ménage doit précéder la sortie, sinon un échec laisse un joueur');
+
+  const filet = read('scripts/nettoie-verif.js');
+  // Un filtre par préfixe large attraperait un élève qui s'appellerait
+  // « Verif-exemple », et c'est sa progression qui disparaîtrait.
+  assert.match(filet, /startsWith\(PREV\) && t\.length > PREV\.length/,
+    'le filtre doit exiger le suffixe, pas seulement le préfixe');
+  assert.doesNotMatch(filet, /includes\('Verif'\)/,
+    '"includes" attraperait « Verif-exemple » et supprimerait sa progression');
+
+  // Et le job de CI appelle le script, pas un `grep` fragile.
+  const ci = read('.github/workflows/verifications.yml');
+  assert.match(ci, /npm run nettoie-verif/);
+  assert.doesNotMatch(ci, /grep -o '\"team/);
+});
+
 /* -------------------------------------------------------------------- maîtrise */
 
 test('le contrat fixe les deux invariants de la maîtrise', async () => {

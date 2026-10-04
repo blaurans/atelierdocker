@@ -45,10 +45,18 @@ const { quests } = await import('../src/questpack.js');
 const pack = quests();
 
 // ── jeton
+//
+// Le nom de l'équipe est tiré au sort et **retenu** : le ménage doit viser ce
+// nom exact. La V1 du script visait « Verif » et la CI visait « Verif_000000 »,
+// donc aucune des deux ne supprimait quoi que ce soit — chaque exécution laissait
+// un joueur de plus sur le portail de production. Le menu « Suivi de la classe
+// » affichait des élèves qui n'en étaient pas.
+const equipe = `Verif_${Date.now() % 100000}`;
+
 const reg = await (await fetch(`${B}/api/register`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ team: `Verif_${Date.now() % 100000}`, mode: 'normal' }),
+  body: JSON.stringify({ team: equipe, mode: 'normal' }),
 })).json();
 if (!reg.token) {
   console.error('inscription impossible :', reg.error ?? reg);
@@ -122,9 +130,30 @@ console.log(`\n${ok}/${pack.totalQuests} commandes fonctionnent réellement.`);
 if (echecs.length) {
   console.log(`\nÉchecs :`);
   for (const q of echecs) console.log(`  · n°${q.number} ${q.title} (${q.id})`);
-  process.exit(1);
 }
 
-// Ménage du joueur de vérification
-await fetch(`${B}/api/admin/delete/Verif`, { method: 'POST' }).catch(() => {});
-process.exit(0);
+// Le ménage passe **avant** la sortie, et dans les deux cas. Le joueur de
+// vérification n'a rien à faire dans les données de production, et une
+// exécution en échec est précisément celle dont on ne veut pas laisser de
+// trace : c'est elle qu'on relance en boucle.
+await menage();
+
+process.exit(echecs.length ? 1 : 0);
+
+/**
+ * Supprime le joueur de vérification.
+ *
+ * Silencieux : sans clé d'administration — ou si le portail est en local, où il
+ * n'y a rien à nettoyer — l'échec du ménage ne doit pas faire échouer la
+ * vérification. Le joueur fantôme est inoffensif, la vérification ne l'est pas.
+ */
+async function menage() {
+  try {
+    const r = await fetch(`${B}/api/admin/delete/${equipe}`, { method: 'POST' });
+    console.log(r.ok
+      ? `\nJoueur de vérification ${equipe} supprimé.`
+      : `\nJoueur ${equipe} non supprimé (HTTP ${r.status}) — à nettoyer à la main.`);
+  } catch (e) {
+    console.log(`\nMénage impossible : ${e.message}`);
+  }
+}

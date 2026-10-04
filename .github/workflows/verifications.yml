@@ -78,11 +78,13 @@ jobs:
       - name: Rejouer les 27 commandes de récupération de mot de passe
         run: npm run check-fetchhints
 
-      - name: Nettoyer le joueur de vérification
+      # `check-fetchhints` supprime son propre joueur, et il connaît enfin le nom
+      # qu'il a tiré au sort. Ce filet rattrape ce qu'une exécution interrompue a
+      # laissé : le menu « Suivi de la classe » de production ne doit jamais
+      # afficher un joueur de vérification.
+      - name: Nettoyer les joueurs de vérification restants
         if: always()
-        run: |
-          curl -sf -X POST \
-            -H "X-Arena-Admin: ${{ secrets.ATELIER_ADMIN_KEY }}" \
-            https://atelierdocker.laurans.org/api/admin/delete/Verif_000000 \
-            || echo "aucun joueur à nettoyer"
+        run: npm run nettoie-verif
+        env:
+          ATELIER_ADMIN_KEY: ${{ secrets.ATELIER_ADMIN_KEY }}
         continue-on-error: true
