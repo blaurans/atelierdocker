@@ -106,4 +106,17 @@ function ajouterColonneSiAbsente(table, colonne, definition) {
 ajouterColonneSiAbsente('players', 'last_ip', "TEXT NOT NULL DEFAULT ''");
 ajouterColonneSiAbsente('players', 'last_submit_at', 'TEXT');
 
+// Les trois mesures de maîtrise. Une base V1 n'a pas ces colonnes, et
+// `INSERT INTO completions` les nomme toutes les trois : sans cette migration,
+// le premier `prepare` de `repo/arena.js` échoue avec « no column named
+// hints_used » et le conteneur redémarre en boucle. C'est exactement ce qui
+// s'est produit au premier déploiement — la migration était écrite, mais
+// oublié d'être appelée.
+//
+// `hint_uses` et `attempts` n'ont pas besoin de migration : ce sont des tables
+// neuves, créées par le `CREATE TABLE IF NOT EXISTS` ci-dessus.
+ajouterColonneSiAbsente('completions', 'hints_used', 'INTEGER NOT NULL DEFAULT 0');
+ajouterColonneSiAbsente('completions', 'check_ok', 'INTEGER NOT NULL DEFAULT 0');
+ajouterColonneSiAbsente('completions', 'recall_ok', 'INTEGER NOT NULL DEFAULT 0');
+
 export { config, ROOT };
