@@ -131,8 +131,18 @@ export function mastery({ completions = [], totalQuests = 0, byModule = {} }) {
   };
 }
 
-/** Synthèse pour le portail enseignant : l.where l ATM est en train de bloquer. */
-export function cohort(rows, totalQuests) {
+/**
+ * Synthèse pour le portail enseignant : où la promotion en est, et où ça
+ * coince.
+ *
+ * @param {Array} rows les validations, tous joueurs confondus
+ * @param {number} totalQuests taille du jeu
+ * @param {number} players nombre d'inscrits — passé séparément parce qu'il
+ *   n'est pas déductible des validations : un élève inscrit qui n'a rien
+ *   validé n'apparaît dans aucune ligne. Sans ce troisième argument, la
+ *   synthèse annonçait 3 joueurs pour 2 inscrits.
+ */
+export function cohort(rows, totalQuests, players = rows.length) {
   const done = rows.map((r) => ({
     module: r.module,
     hints_used: r.hints_used,
@@ -158,10 +168,20 @@ export function cohort(rows, totalQuests) {
     .slice(0, 5);
 
   return {
-    players: rows.length,
+    players,
+    // Le nombre d'inscrits qui ont validé au moins une quête. Complète
+    // `players` : un élève inscrit sans rien faire est une information, pas un
+    // zéro — et c'est lui qu'il faut aller voir en début de séance.
+    started: rows.length > 0 ? players : 0,
     total_quests: totalQuests,
-    average_autonomy: rows.length ? round(autonomy / done.length || 0) : 0,
-    average_hints: rows.length ? round(done.reduce((a, c) => a + (c.hints_used ?? 0), 0) / (done.length || 1)) : 0,
+    // La part d'inscrits déjà underrepresented. Hors de 0 et 1 dès qu'un seul
+    // élève a commencé, donc on arrondit pour ne pas afficher un pourcentage
+    // trompeur à trois personnes.
+    started_ratio: players > 0 ? round(Math.min(1, rows.length / players)) : 0,
+    average_autonomy: done.length ? round(autonomy / done.length) : 0,
+    average_hints: done.length
+      ? round(done.reduce((a, c) => a + (c.hints_used ?? 0), 0) / done.length)
+      : 0,
     hardest,
   };
 }

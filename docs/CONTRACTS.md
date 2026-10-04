@@ -287,8 +287,10 @@ le tri alphabétique est le seul tri, et il ne classe personne.
   "meta": {
     "total_quests": 26,
     "modules": [ { "module": 1, "title": "Préparer le terrain", "count": 4 } ],
-    "cohort": { "players": 12, "average_autonomy": 0.62,
-                "average_hints": 1.4,
+    "cohort": { "players": 12,           // inscrits
+                "started": 11,            // ont validé au moins une quête
+                "started_ratio": 0.92,
+                "average_autonomy": 0.62, "average_hints": 1.4,
                 "hardest": [ { "module": 3, "hints": 41 } ] },
     "attestation_required": false,
     "server_time": "2026-…"

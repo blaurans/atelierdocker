@@ -137,8 +137,11 @@ test('promotion : les ratios se moyennent, sans exposer les joueurs', () => {
     completion({ hints_used: 1 }), completion({ hints_used: 1 }),
     completion({ hints_used: 3 }),
   ];
-  const c = cohort(rows, 7);
-  assert.equal(c.players, 6);
+  // Huit inscrits, six validations : deux n'ont rien fait.
+  const c = cohort(rows, 7, 8);
+  assert.equal(c.players, 8, 'le nombre d\'inscrits vient de l\'appelant, pas des lignes');
+  assert.equal(c.started, 8);
+  assert.equal(c.started_ratio, 0.75);
   assert.equal(c.average_hints, 0.83);
   assert.equal(c.average_autonomy, 0.5);
   // Aucun nom d'équipe dans la synthèse : c'est une vue d'ensemble, pas un
@@ -146,7 +149,24 @@ test('promotion : les ratios se moyennent, sans exposer les joueurs', () => {
   assert.equal(Object.keys(c).includes('players_list'), false);
 });
 
-test('promotion : l\'atelier le plus costly en indices est remonté', () => {
+test('promotion : un inscrit sans validation n\'est pas compté comme joué', () => {
+  // Trois inscrits, un seul a validé. Sans le troisième argument, la synthèse
+  // aurait annoncé 1 joueur — le nombre de lignes de validation.
+  const c = cohort([completion()], 26, 3);
+  assert.equal(c.players, 3);
+  assert.equal(c.started, 3);
+  assert.equal(c.started_ratio, 0.33);
+});
+
+test('promotion : 12 inscrits et aucune validation', () => {
+  const c = cohort([], 26, 12);
+  assert.equal(c.players, 12);
+  assert.equal(c.started, 0);
+  assert.equal(c.started_ratio, 0);
+  assert.equal(c.average_autonomy, 0);
+});
+
+test('promotion : l\'atelier le plus coûteux en indices est remonté', () => {
   const rows = [
     completion({ module: 1 }),
     completion({ module: 2, hints_used: 5 }),
@@ -158,8 +178,10 @@ test('promotion : l\'atelier le plus costly en indices est remonté', () => {
 });
 
 test('promotion : une promotion vide ne divise pas par zéro', () => {
-  const c = cohort([], 7);
+  const c = cohort([], 7, 0);
   assert.equal(c.players, 0);
+  assert.equal(c.started, 0);
+  assert.equal(c.started_ratio, 0);
   assert.equal(c.average_autonomy, 0);
   assert.equal(c.average_hints, 0);
   assert.deepEqual(c.hardest, []);

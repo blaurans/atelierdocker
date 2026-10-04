@@ -97,7 +97,7 @@ export function overview() {
         module: m.module, title: m.title, icon: m.icon, tagline: m.tagline,
         count: m.quests.length,
       })),
-      cohort: cohort(allCompletions, pack.totalQuests),
+      cohort: cohort(allCompletions, pack.totalQuests, rows.length),
       server_time: new Date().toISOString(),
       attestation_required: config.requireAttestation,
       ...counts(),
