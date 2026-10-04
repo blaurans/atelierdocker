@@ -1,438 +1,661 @@
-// Module 3 — Le conteneur en détail
-// La quête phare qui termine le module est la mission officielle n°2 « Infiltration Interactive ».
+// Atelier 3 — Régler en service
+//
+// L'atelier 2 a fait tourner un conteneur. Cet atelier répond à la prochaine
+// question du fil rouge : le site de la librairie est en ligne, mais il est
+// mal réglé. Il perd ses données à chaque redémarrage, et personne ne peut le
+// consulter depuis l'extérieur.
+//
+// On réglera le problème au bon endroit : la configuration d'un conteneur se
+// décide à la création, et les modifications se font en recréant. C'est le
+// point le plus contre-intuitif de Docker, et l'atelier est construit autour.
+//
+// Mêmes règles qu'aux ateliers 1 et 2 : aucun artefact mort, un `recall` seulement
+// quand la réponse n'est pas dans l'énoncé, et un `charge` qui finit par 0.
 export default {
   meta: {
-    slug: 'm3-conteneur-en-detail',
+    slug: 'm3-regler-en-service',
     module: 3,
-    title: 'Le conteneur en détail',
-    tagline: 'Créer, démarrer, explorer, renommer, puis nettoyer',
-    icon: '🧰',
+    title: 'Régler en service',
+    tagline: 'Ports, variables d\'environnement, cycle de vie : le site tient debout',
+    icon: '⚙️',
   },
 
   quests: [
     {
-      id: 'm3-01-creer-sans-demarrer',
+      id: 'm3-01-ports-et-variables',
       order: 1,
-      title: 'Créer sans démarrer',
+      title: 'Ports et variables d\'environnement',
       points: 25,
-      flag: 'FLAG{CREATE_THEN_START_DECOUPLED}',
-      estMinutes: 15,
-      brief: `# Créer sans démarrer
+      flag: 'FLAG{PORT_9090_ENV_CONFIGURED_VERDI}',
+      estMinutes: 14,
+      brief: `# Ports et variables d'environnement
 
-\`docker run\` crée **et** démarre dans la foulée. Mais Docker sait aussi séparer les deux opérations. C'est utile : tu prépares un conteneur à l'avance, puis tu le lances quand tu veux.
+Le site de la librairie tourne, mais **personne ne peut le consulter** : depuis
+la machine hôte, le port est fermé. Et l'administrateur du site ne peut pas
+changer le texte affiché sans qu'on reconstruise l'image.
+
+Ce sont deux réglages de création. Un conteneur se **configure en le créant** —
+on ne le règle pas après.
 
 **Ta mission**
 
-1. Crée un conteneur **sans** le démarrer, et donne-lui un nom :
+1. Arrête et supprime le conteneur de l'atelier 2, puis confirme qu'il a bien
+   disparu :
 
 \`\`\`bash
-docker create --name journal alpine sh -c 'echo "journal cree et pret"; sleep 300'
-\`\`\`
-
-2. Regarde son état : il existe, mais il ne tourne pas.
-
-\`\`\`bash
+docker rm -f verdi
 docker ps -a
 \`\`\`
 
-3. Démarre-le, regarde, puis lis ce qu'il a affiché :
+2. Recrée-le avec un port publié. L'option se lit \`--publish\` ou \`-p\`, et son
+   format est **hôte : conteneur** — l'ordre est le piège le plus fréquent :
 
 \`\`\`bash
-docker start journal
-docker ps
-docker logs journal
+docker run -d --name verdi -p 9090:80 nginx:alpine
+curl -s http://localhost:9090 | head -3
 \`\`\`
 
-4. Arrête-le, regarde son état, et relis les logs : ils sont toujours là.
+3. Regarde ce que Docker a retenu comme configuration :
 
 \`\`\`bash
-docker stop journal
-docker ps -a
-docker logs journal
+docker port verdi
 \`\`\`
 
-5. Demande à Docker le statut brut, sans tableau, puis supprime le conteneur :
+4. Recrée encore une fois, cette fois avec une variable d'environnement. La
+   syntaxe est \`NOM=valeur\`, sans espace autour du signe égal :
 
 \`\`\`bash
-docker inspect journal --format '{{.State.Status}}'
-docker rm journal
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 \\
+  -e NOM_DU_SITE="Librairie Verdi" \\
+  -e MODE_LANGUE=fr \\
+  nginx:alpine
+docker inspect verdi --format '{{range .Config.Env}}{{println .}}{{end}}'
 \`\`\`
 
 **Ce que tu observes**
 
-- Un conteneur créé se voit dans \`docker ps -a\` avec le statut **Created**, pas **Up**.
-- \`docker start\` est réutilisable : on arrête puis on redémarre le même conteneur, sans jamais le recréer.
-- L'arrêt peut prendre une dizaine de secondes : Docker envoie d'abord un signal d'arrêt demandé, puis insiste.
-- Les logs restent disponibles après l'arrêt.
-
-**Ton mot de passe**
-
-Il n'est écrit nulle part : il sort du conteneur en marche. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
-\`\`\`bash
-export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
-docker exec m3-prepa cat /secret.txt && docker rm -f m3-prepa
-\`\`\`
-
-Le conteneur affiche le mot de passe : envoie-le tel quel au portail.`,
-      hints: [
-        "La commande de préparation s'appelle presque comme `docker run`, mais elle ne démarre rien.",
-        "Le nom du conteneur se donne avec l'option `--name`, à placer avant le nom de l'image.",
-      ],
-      solution: `\`\`\`bash
-docker create --name journal alpine sh -c 'echo "journal cree et pret"; sleep 300'
-# -> affiche l'identifiant du conteneur cree ; RIEN n'est execute
-
-docker ps -a
-# -> journal  Created  alpine   "sh -c 'echo \"journa..."
-
-docker start journal
-docker ps
-# -> journal  Up ...
-docker logs journal
-# -> journal cree et pret
-
-docker stop journal
-docker ps -a
-# -> journal  Exited (137) ...
-docker logs journal
-# -> journal cree et pret   (toujours disponible)
-
-docker inspect journal --format '{{.State.Status}}'
-# -> exited
-
-docker rm journal
-\`\`\``,
-      teaches: ['docker create', 'docker start', 'docker logs', 'option --name', 'statut Created'],
-      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
-docker exec m3-prepa cat /secret.txt && docker rm -f m3-prepa`,
-      checkpoint: "Tu as réussi quand tu as vu le statut passer de Created à Up puis à Exited sur le même conteneur, et quand ses logs sont restés lisibles après l'arrêt.",
-    },
-
-    {
-      id: 'm3-02-verbes-du-cycle-de-vie',
-      order: 2,
-      title: 'Les verbes du cycle de vie',
-      points: 25,
-      flag: 'FLAG{PAUSE_KILL_LIFECYCLE_VERBS}',
-      estMinutes: 12,
-      brief: `# Les verbes du cycle de vie
-
-Un conteneur a son propre petit vocabulaire d'actions. Une fois que tu le connais, tu sais agir sur n'importe quel conteneur du monde.
-
-**Ta mission**
-
-1. Démarre en arrière-plan un conteneur qui écrit un mot toutes les deux secondes :
-
-\`\`\`bash
-docker run -d --name rythme alpine sh -c 'while true; do echo tick; sleep 2; done'
-\`\`\`
-
-2. Regarde-le tourner et lis ses dernières lignes :
-
-\`\`\`bash
-docker ps
-docker logs --tail 3 rythme
-\`\`\`
-
-3. Suspends son activité, regarde le statut, puis reprends :
-
-\`\`\`bash
-docker pause rythme
-docker ps
-docker unpause rythme
-\`\`\`
-
-4. Redémarre-le, puis arrête-le normalement :
-
-\`\`\`bash
-docker restart rythme
-docker stop rythme
-\`\`\`
-
-5. Relance-le et tue-le sans cérémonie, puis nettoie :
-
-\`\`\`bash
-docker start rythme
-docker kill rythme
-docker rm rythme
-\`\`\`
-
-**Ce que tu observes**
-
-- \`-d\` signifie détaché : le conteneur tourne en arrière-plan, le terminal reste libre.
-- **pause** fige tous les processus du conteneur, sans l'arrêter. Le statut devient *Up (Paused)*.
-- **restart** enchaîne arrêt puis démarrage.
-- **stop** demande l'arrêt proprement. **kill** coupe net, sans préavis.
-- Les deux laissent le conteneur arrêté : il faut \`docker rm\` pour le supprimer.
-
-**Ton mot de passe**
-
-Il n'est écrit nulle part : il sort du conteneur en marche. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
-\`\`\`bash
-export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
-docker exec m3-horloge cat /secret.txt && docker rm -f m3-horloge
-\`\`\`
-
-Le conteneur affiche le mot de passe : envoie-le tel quel au portail.`,
-      hints: [
-        "L'option qui met le conteneur en arrière-plan tient en une seule lettre : `-d`.",
-        "Le statut des conteneurs est dans la colonne STATUS de `docker ps`.",
-      ],
-      solution: `\`\`\`bash
-docker run -d --name rythme alpine sh -c 'while true; do echo tick; sleep 2; done'
-# -> identifiant du conteneur ; le terminal est libere
-
-docker ps
-# -> rythme  Up ...
-docker logs --tail 3 rythme
-# -> tick / tick / tick
-
-docker pause rythme
-docker ps
-# -> rythme  Up 4 seconds (Paused)   <- le statut le dit
-docker unpause rythme
-
-docker restart rythme
-docker stop rythme
-docker ps -a
-# -> rythme  Exited ...
-
-docker start rythme
-docker kill rythme
-# -> arret brutal, aucun message
-docker rm rythme
-docker ps -a
-# -> plus rien
-\`\`\``,
-      teaches: ['option -d', 'docker pause', 'docker unpause', 'docker restart', 'docker kill'],
-      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
-docker exec m3-horloge cat /secret.txt && docker rm -f m3-horloge`,
-      checkpoint: "Tu as réussi quand `docker ps` a affiché le statut *Up (Paused)* juste après `docker pause`, et quand le conteneur a disparu de `docker ps -a` après le `docker rm` final.",
-    },
-
-    {
-      id: 'm3-03-entrer-sortir-renommer',
-      order: 3,
-      title: 'Entrer, sortir, renommer',
-      points: 50,
-      flag: 'FLAG{EXEC_CP_RENAME_INSIDE_THE_BOX}',
-      estMinutes: 18,
-      brief: `# Entrer, sortir, renommer
-
-Un conteneur en marche, c'est une petite machine à part entière. On y entre, on en sort, on lui donne un nom plus parlant.
-
-**Ta mission**
-
-1. Démarre un conteneur en arrière-plan qui attend une demi-heure :
-
-\`\`\`bash
-docker run -d --name atelier alpine sleep 600
-\`\`\`
-
-2. Entre dedans avec un terminal interactif :
-
-\`\`\`bash
-docker exec -it atelier sh
-\`\`\`
-
-À l'intérieur, écris un fichier, puis sors :
-
-\`\`\`bash
-echo "note interne" > /tmp/note.txt
-ls -l /tmp
-exit
-\`\`\`
-
-3. Sans y entrer, exécute quand même une commande dedans, puis regarde le fichier créé :
-
-\`\`\`bash
-docker exec atelier ls -l /tmp
-\`\`\`
-
-4. Sors le fichier du conteneur vers ta machine, puis vérifie :
-
-\`\`\`bash
-docker cp atelier:/tmp/note.txt ./note-extrait.txt
-cat ./note-extrait.txt
-\`\`\`
-
-5. Fais l'inverse : pousse un fichier de ta machine dans le conteneur.
-
-\`\`\`bash
-docker cp ./note-extrait.txt atelier:/tmp/note-copie.txt
-docker exec atelier cat /tmp/note-copie.txt
-\`\`\`
-
-6. Renomme le conteneur, vérifie, puis supprime-le :
-
-\`\`\`bash
-docker rename atelier atelier-renomme
-docker ps
-docker rm -f atelier-renomme
-\`\`\`
+- \`curl http://localhost:9090\` répond : le port est publié. Mais
+  \`curl http://localhost:80\` non — rien n'est lié au port 80 de la machine.
+- \`docker port verdi\` affiche \`80/tcp -> 0.0.0.0:9090\` : à gauche ce qu écoute
+  **dans** le conteneur, à droite ce qui est joignable **dehors**.
+- Les variables d'environnement apparaissent dans l'inspection, avec les
+  variables que Docker pose lui-même.
 
 **Bon à retenir**
 
-- \`docker exec\` lance une commande **dans** un conteneur déjà démarré : il ne crée rien.
-- \`docker cp\` est le pont entre ta machine et le conteneur, dans les deux sens.
-- Le chemin source s'écrit \`nom_conteneur:/chemin/à_l'intérieur\`.
+Deux conteneurs ne peuvent pas sepublished sur le même port de la machine : le
+second échoue avec \`port is already allocated\`. Si la librairie a déjà un
+service sur 9090, on choisira autre chose.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort du conteneur en marche. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
-docker cp m3-atelier:/secret.txt ./secret.txt && cat ./secret.txt && docker rm -f m3-atelier && rm -f ./secret.txt
-\`\`\`
-
-Le conteneur affiche le mot de passe : envoie-le tel quel au portail.`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-01-ports-et-variables/raw?token=$ARENA_TOKEN"
+\`\`\``,
       hints: [
-        "Les deux options `-i` et `-t` d'`exec` veulent dire interactif et terminal : sans elles, tu ne peux pas taper au clavier.",
-        "Pour copier un fichier depuis le conteneur, le chemin doit commencer par le nom du conteneur, puis deux-points, puis le chemin interne.",
+        "Le format du port est `hôte:conteneur`. Si `curl` ne répond pas, inverse les deux nombres et réessaie — c'est l'erreur la plus fréquente au monde.",
+        "La variable d'environnement se passe avec `-e`. L'espace autour du `=` fait échouer la commande : `-e NOM = valeur` est trois arguments, pas un.",
+        "Si le lancement échoue sur `port is already allocated`, c'est qu'un autre conteneur occupe le port. Change de port, ou supprime l'autre.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm3-01-ordre-port',
+          kind: 'mcq',
+          prompt: 'Avec `-p 9090:80`, que signifie le 9090 ?',
+          choices: [
+            'Le port sur la machine hôte, joignable depuis l\'extérieur',
+            'Le port à l\'intérieur du conteneur',
+            'Le port du serveur web Nginx',
+            'Un port temporaire, réattribué à chaque démarrage',
+          ],
+          answer: 0,
+          explanation: "Le format est `hôte:conteneur`. Nginx écoute sur 80 dans le conteneur, et on publie ce 80 sur le 9090 de la machine. Inverser les deux est l'erreur classique.",
+          required: true,
+        },
+        {
+          id: 'm3-01-configuration',
+          kind: 'mcq',
+          prompt: 'Comment change-t-on une variable d\'environnement d\'un conteneur déjà lancé ?',
+          choices: [
+            'On ne peut pas : il faut recréer le conteneur avec `-e`',
+            'Avec `docker exec -e`',
+            'En éditant un fichier de configuration dans le conteneur',
+            'Avec `docker env`',
+          ],
+          answer: 0,
+          explanation: "Un conteneur est figé à sa création : c'est ce qui rend son comportement reproductible. Changer une variable impose de recréer — ce qui est l'objet de la quête suivante.",
+          required: true,
+        },
+        {
+          id: 'm3-01-env-syntaxe',
+          kind: 'boolean',
+          prompt: 'L\'option `-e MON_SITE = "Chez moi"` est correcte et pose la variable MON_SITE.',
+          answer: false,
+          explanation: "Faux : aucun espace autour du `=`. `-e MON_SITE = \"Chez moi\"` est interprété comme trois arguments distincts, et le lancement échoue ou pose une variable vide.",
+          required: false,
+        },
       ],
       solution: `\`\`\`bash
-docker run -d --name atelier alpine sleep 600
+docker rm -f verdi
+docker ps -a
 
-docker exec -it atelier sh
-# a l'interieur :
-#   echo "note interne" > /tmp/note.txt
-#   ls -l /tmp
-#   exit
+docker run -d --name verdi -p 9090:80 nginx:alpine
+curl -s http://localhost:9090 | head -3
+# -> <!DOCTYPE html>
+# -> <html>
+# -> <head><title>Welcome to nginx!</title></head>
 
-docker exec atelier ls -l /tmp
-# -> -rw-r--r-- 1 root root 14 ... /tmp/note.txt
+docker port verdi
+# -> 80/tcp -> 0.0.0.0:9090
 
-docker cp atelier:/tmp/note.txt ./note-extrait.txt
-cat ./note-extrait.txt
-# -> note interne
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 \\
+  -e NOM_DU_SITE="Librairie Verdi" \\
+  -e MODE_LANGUE=fr \\
+  nginx:alpine
 
-docker cp ./note-extrait.txt atelier:/tmp/note-copie.txt
-docker exec atelier cat /tmp/note-copie.txt
-# -> note interne
-
-docker rename atelier atelier-renomme
-docker ps
-# -> atelier-renomme  Up ...
-docker rm -f atelier-renomme
+docker inspect verdi --format '{{range .Config.Env}}{{println .}}{{end}}'
+# -> PATH=/usr/local/sbin:/usr/local/bin:...
+# -> NOM_DU_SITE=Librairie Verdi
+# -> MODE_LANGUE=fr
+# -> NGINX_VERSION=1.27
 \`\`\``,
-      teaches: ['docker exec', 'options -i et -t', 'docker cp', 'docker rename'],
+      teaches: ['docker port', '-p port_hôte:port_conteneur', '-e', 'variable d\'environnement', 'docker inspect'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
-docker cp m3-atelier:/secret.txt ./secret.txt && cat ./secret.txt && docker rm -f m3-atelier && rm -f ./secret.txt`,
-      checkpoint: "Tu as réussi quand le fichier écrit dans le conteneur apparaît sur ta machine avec `docker cp`, et quand `docker ps` affiche le nouveau nom après le renommage.",
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-01-ports-et-variables/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais expliquer à l'administrateur pourquoi il ne peut pas changer le nom du site sans qu'on recrée le conteneur — et ce que ça implique pour l'exploitation.",
     },
 
     {
-      id: 'm3-04-infiltration-interactive',
-      order: 4,
-      title: 'Infiltration Interactive',
-      points: 200,
-      flag: 'FLAG{ALPINE_SH_INSPECTION_HERO}',
-      estMinutes: 20,
-      brief: `# Mission phare — Infiltration Interactive
+      id: 'm3-02-modifier-un-conteneur',
+      order: 2,
+      title: 'Modifier un conteneur',
+      points: 25,
+      flag: 'FLAG{RECREATED_AFTER_CONFIG_CHANGE_VERDI}',
+      estMinutes: 14,
+      brief: `# Modifier un conteneur
 
-Objectif : maîtriser le mode interactif, comprendre l'isolation des processus et manipuler les fichiers d'un conteneur.
+L'administrateur veut que le site affiche « Librairie Verdi » au lieu de la page
+par défaut. Une variable d'environnement ne suffit pas : il faut que le serveur
+la lise au démarrage.
 
-**Mission**
+Il existe une méthode très tentante et **très mauvaise** : entrer dans le
+conteneneur et modifier les fichiers. Montrons ce qu'elle coûte.
 
-1. Lance un terminal interactif à l'intérieur d'un conteneur Alpine Linux :
+**Ta mission**
+
+1. Entre dans le conteneur de la quête précédente et modifie la page d'accueil
+   directement. \`exec\` avec \`-i\` (entrée) et \`-t\` (terminal) donne un
+   shell :
 
 \`\`\`bash
-docker run -it --name agent-infiltrator alpine /bin/sh
+docker exec -it verdi sh
 \`\`\`
 
-2. Explore l'environnement isolé, avec ces quatre commandes :
+À l'intérieur, écris une page qui porte le nom de la librairie, sors, et
+vérifie que le changement est visible de l'extérieur :
+
+\`\`\`bash
+curl -s http://localhost:9090 | grep -i verdi
+\`\`\`
+
+2. Supprime le conteneur, recrée-le **identiquement**, et regarde ce qui
+   disparaît :
+
+\`\`\`bash
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 \\
+  -e NOM_DU_SITE="Librairie Verdi" \\
+  -e MODE_LANGUE=fr \\
+  nginx:alpine
+curl -s http://localhost:9090 | grep -i verdi
+echo "code de retour : $?"
+\`\`\`
+
+La seconde commande ne trouve rien, et affiche un code de retour **1**. C'est
+le moment de la quête.
+
+3. Compare avec la bonne méthode. On prépare le fichier **avant** de lancer, et
+   on le monte dans le conteneur :
+
+\`\`\`bash
+mkdir -p ~/verdi
+echo 'Librairie Verdi - Accueil du site' > ~/verdi/index.html
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 \\
+  -v ~/verdi:/usr/share/nginx/html:ro \\
+  nginx:alpine
+curl -s http://localhost:9090 | grep -i verdi
+echo "code de retour : $?"
+\`\`\`
+
+L'option \`ro\` signifie *lecture seule* : le conteneur peut lire, pas écrire.
+C'est ce qu'on veut pour du contenu servi.
+
+**Ce que tu observes**
+
+- Ta modification de l'étape 1 fonctionne… jusqu'au \`docker rm\`.
+- Après recréation à l'identique, la modification a disparu. Le conteneur
+  recréé est identique au premier.
+- Le montage de l'étape 3 rend la modification **durable** : elle vit dans
+  \`~/verdi\`, sur la machine, pas dans le conteneur.
+
+**La leçon**
+
+Un conteneur est jetable par construction. Tout ce qu'on y écrit à la main est
+perdu au premier \`docker rm\`. Ce qui doit durer vit **dehors** — dans un volume
+(étape 3) ou dans une image reconstruite (atelier 6).
+
+**Ton mot de passe**
+
+\`\`\`bash
+export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-02-modifier-un-conteneur/raw?token=$ARENA_TOKEN"
+\`\`\``,
+      hints: [
+        "`grep` renvoie 0 s'il a trouvé, 1 sinon. C'est la façon la plus simple de vérifier qu'un changement est passé.",
+        "Le montage se dit `-v source:destination`, et le `:ro` final interdit l'écriture. Sans lui, le conteneur pourrait modifier tes fichiers.",
+        "`~` est ton dossier personnel. Vérifie qu'il existe avant de monter : un montage d'un dossier inexistant crée un dossier vide à la place.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm3-02-jetable',
+          kind: 'mcq',
+          prompt: 'Tu as modifié un fichier dans un conteneur, puis relancé un conteneur identique. Que reste-t-il de ta modification ?',
+          choices: [
+            'Rien : le nouveau conteneur repart de l\'image',
+            'Elle reste, Docker conserve les modifications',
+            'Elle reste si le nom du conteneur est le même',
+            'Elle reste dans les logs',
+          ],
+          answer: 0,
+          explanation: "Un conteneur est une instance jetable d'une image. Il n'existe aucun mécanisme de persistance implicite : c'est ce qui le rend reproductible, et c'est sa contrepartie.",
+          required: true,
+        },
+        {
+          id: 'm3-02-volume',
+          kind: 'mcq',
+          prompt: 'Quelle est la bonne façon de faire durer une modification ?',
+          choices: [
+            'La stocker hors du conteneur et la monter avec `-v`',
+            'Utiliser `docker commit`',
+            'La réappliquer après chaque `docker rm`',
+            'La mettre dans une variable d\'environnement',
+          ],
+          answer: 0,
+          explanation: "`-v source:destination` monte un dossier de la machine dans le conteneur. La modification vit alors dans la source, et survit à tout `docker rm`. C'est l'objet de l'atelier 6, sur les volumes nommés.",
+          required: true,
+        },
+        {
+          id: 'm3-02-ro',
+          kind: 'boolean',
+          prompt: 'Monter un dossier avec `:ro` empêche le conteneur d\'écrire dedans.',
+          answer: true,
+          explanation: "`:ro` pour *read-only*. Pour du contenu servi en statique, c'est le bon réglage : le conteneur peut lire, et un bug du programme ne peut pas abîmer tes fichiers.",
+          required: false,
+        },
+      ],
+      solution: `\`\`\`bash
+docker exec -it verdi sh
+# /usr/share/nginx/html # echo 'Librairie Verdi - Accueil du site' > index.html
+# exit
+curl -s http://localhost:9090 | grep -i verdi
+# -> Librairie Verdi - Accueil du site   (code de retour 0)
+
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 -e NOM_DU_SITE="Librairie Verdi" nginx:alpine
+curl -s http://localhost:9090 | grep -i verdi
+# -> (rien)
+echo "code de retour : $?"
+# -> 1                            (la modification a disparu)
+
+mkdir -p ~/verdi
+echo 'Librairie Verdi - Accueil du site' > ~/verdi/index.html
+docker rm -f verdi
+docker run -d --name verdi -p 9090:80 -v ~/verdi:/usr/share/nginx/html:ro nginx:alpine
+curl -s http://localhost:9090 | grep -i verdi
+# -> Librairie Verdi - Accueil du site   (code de retour 0 : ça tient)
+\`\`\``,
+      teaches: ['docker exec -it', 'docker rm -f', '-v montage', 'option :ro', 'grep code de retour'],
+      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-02-modifier-un-conteneur/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais dire où doit vivre une modification pour survivre à un `docker rm`, et pourquoi c'est un travail hors du conteneur.",
+    },
+
+    {
+      id: 'm3-03-le-cycle-de-vie',
+      order: 3,
+      title: 'Le cycle de vie',
+      points: 50,
+      flag: 'FLAG{LIFECYCLE_VERBS_MASTERED_PAUSED}',
+      estMinutes: 14,
+      brief: `# Le cycle de vie
+
+Un conteneur en marche, on peut le suspendre, le redémarrer, l'arrêter, le tuer.
+Ces verbes se ressemblent mais ne font pas la même chose — et le choix du
+mauvais verbe est un diagnostic raté.
+
+**Ta mission**
+
+1. Lance un conteneur qui écrit \`tick\` toutes les deux secondes, en
+   arrière-plan :
+
+\`\`\`bash
+docker run -d --name rythme alpine sh -c 'while true; do echo tick; sleep 2; done'
+\`\`\`
+
+2. Regarde-le tourner, et lis ses dernières lignes sans tout le journal :
+
+\`\`\`bash
+docker ps
+docker logs --tail 3 rythme
+\`\`\`
+
+3. **Suspends** son activité et compare avec \`docker ps\` : le statut change-t-il
+   en \`Up\` tout court ? Les \`tick\` continuent-ils ?
+
+\`\`\`bash
+docker pause rythme
+docker ps
+docker logs --tail 3 rythme
+sleep 5
+docker logs --tail 3 rythme
+\`\`\`
+
+Regarde les deux sorties de logs : ont-elles changé entre elles ?
+
+4. Reprends, puis redémarre :
+
+\`\`\`bash
+docker unpause rythme
+docker restart rythme
+docker logs --tail 3 rythme
+\`\`\`
+
+5. Arrête proprement, puis compare avec un arrêt brutal :
+
+\`\`\`bash
+docker stop rythme
+docker inspect rythme --format '{{.State.ExitCode}}'
+
+docker start rythme
+docker kill rythme
+docker inspect rythme --format '{{.State.ExitCode}}'
+\`\`\`
+
+**Ce que tu observes**
+
+- \`pause\` fige **tous** les processus du conteneur sans l'arrêter. Le statut
+  devient \`Up (Paused)\`, et les logs ne changent plus : c'est la preuve que le
+  conteneur est gelé, pas éteint.
+- \`restart\` enchaîne arrêt puis démarrage. Le compteur \`tick\` repart.
+- \`stop\` demande l'arrêt proprement : le code de sortie est \`0\`.
+- \`kill\` coupe net : le code de sortie est \`137\`. C'est la valeur classique
+  d'une mort par signal — Docker a fini par devoir tuer le processus.
+
+**Ce que ça change en exploitation**
+
+Un service qui plante et redémarre tout seul, c'est bien. Un service qu'on
+**tue** pour le relancer, c'est une fuite : on perd la trace de ce qu'il
+faisait. La différence entre 0 et 137 dans un journal est souvent tout le
+diagnostic.
+
+**Ton mot de passe**
+
+\`\`\`bash
+export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-03-le-cycle-de-vie/raw?token=$ARENA_TOKEN"
+\`\`\``,
+      hints: [
+        "Le statut de `docker ps` et la longueur de `docker logs` sont les deux seules choses à comparer avant et après `docker pause`.",
+        "`docker inspect --format '{{.State.ExitCode}}'` accepte n'importe quelle propriété du conteneur. C'est la façon la plus rapide de lire un état précis.",
+        "137 = 128 + 9 : le processus a été tué par le signal numéro 9, qui est SIGKILL. Docker l'emploie quand un `stop` n'a pas fait son travail dans le délai imparti.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      // Pas de `recall` : `docker pause` est écrit dans l'énoncé. Le réflexe
+      // ne sert que là où l'élève doit retrouver.
+      check: [
+        {
+          id: 'm3-03-pause',
+          kind: 'mcq',
+          prompt: 'Après `docker pause`, qu\'observe-t-on sur `docker logs` ?',
+          choices: [
+            'Rien de nouveau : les processus sont gelés',
+            'Les messages s\'accumulent plus vite',
+            'Le journal est vidé',
+            'Une erreur de permission',
+          ],
+          answer: 0,
+          explanation: "C'est la meilleure preuve que `pause` gèle et n'arrête pas : le conteneur existe, son statut est `Up (Paused)`, mais plus rien ne s'y écrit. Un arrêt aurait laissé le statut `Exited`.",
+          required: true,
+        },
+        {
+          id: 'm3-03-exit-code',
+          kind: 'mcq',
+          prompt: 'Un conteneur arrêté par `docker kill` affiche un code de sortie de 137. Que signifie ce nombre ?',
+          choices: [
+            'Le processus a été tué par un signal, pas arrêté proprement',
+            'Le conteneur a utilisé 137 Mo',
+            'Le conteneur est mort après 137 secondes',
+            'C\'est un code d\'erreur du portail',
+          ],
+          answer: 0,
+          explanation: "137 = 128 + 9 : le signal numéro 9, SIGKILL. Docker l'emploie quand `stop` n'a pas terminé dans le délai imparti. Un `stop` propre, lui, donne 0.",
+          required: true,
+        },
+      ],
+      solution: `\`\`\`bash
+docker run -d --name rythme alpine sh -c 'while true; do echo tick; sleep 2; done'
+docker logs --tail 3 rythme
+# -> tick
+# -> tick
+# -> tick
+
+docker pause rythme
+docker ps
+# -> 4f2a8b1c9d3e  alpine  Up 10 seconds (Paused)  ...
+
+docker logs --tail 3 rythme
+sleep 5
+docker logs --tail 3 rythme
+# -> identiques : aucun nouveau tick
+
+docker unpause rythme
+docker restart rythme
+docker logs --tail 3 rythme
+# -> le compteur repart
+
+docker stop rythme
+docker inspect rythme --format '{{.State.ExitCode}}'
+# -> 0
+
+docker start rythme
+docker kill rythme
+docker inspect rythme --format '{{.State.ExitCode}}'
+# -> 137
+
+docker rm rythme
+\`\`\``,
+      teaches: ['docker pause', 'docker unpause', 'docker restart', 'docker kill', 'code de sortie'],
+      fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-03-le-cycle-de-vie/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu sais dire, devant un journal, si un service s'est arrêté proprement ou a été tué — et ce que chaque code de sortie t'apprend.",
+    },
+
+    {
+      id: 'm3-04-le-conteneur-est-isole',
+      order: 4,
+      title: 'Le conteneur est isolé',
+      points: 200,
+      flag: 'FLAG{ISOLATION_VERIFIED_PID1_INSIDE_AGENT}',
+      estMinutes: 20,
+      brief: `# Le conteneur est isolé
+
+Le site de la librairie tourne. Reste une question que l'administrateur pose
+toujours, et qui décide de la sécurité de toute l'infrastructure : **un
+conteneur peut-il toucher à la machine ?**
+
+Un conteneur n'est pas une machine virtuelle : c'est un ensemble de
+restrictions sur les processus du noyau. Comprendre *comment* elles sont
+posées, c'est comprendre ce qui sépare la librairie d'un programme qui
+s'échappe.
+
+**Ta mission**
+
+1. Compare deux mondes. Sur ta machine, puis dans un conteneur :
+
+\`\`\`bash
+docker run -it --name agent alpine /bin/sh
+\`\`\`
+
+À l'intérieur, trois commandes, dans cet ordre :
 
 \`\`\`bash
 id
 ps aux
 cat /etc/os-release
-echo "message de l'agent infiltrateur"
 \`\`\`
 
-- \`id\` te dit qui tu es **dans** le conteneur : tu es root, même si tu ne l'es pas sur ta machine.
-- \`ps aux\` ne montre que les processus du conteneur : tes programmes de la machine sont invisibles d'ici.
-- \`cat /etc/os-release\` confirme que tu es bien dans Alpine Linux, et non sur ta machine.
-- \`echo\` écrit ton message dans la sortie standard : il reste dans les journaux du conteneur, même après la mort de celui-ci.
+- \`id\` dit qui tu es **dedans**. Note le résultat.
+- \`ps aux\` liste **un seul** processus. Compare avec la sortie de \`ps aux\` sur
+  ta machine, en sortant du conteneur.
+- \`cat /etc/os-release\` dit quelle distribution tourne **dedans**.
 
-3. Tape \`exit\` pour quitter le conteneur.
-
-4. Constate qu'il est arrêté, demande son statut exact, et relis les logs : ton message y est resté :
+2. Sors (\`exit\`), puis regarde ce que tu vois sur la machine, et compare :
 
 \`\`\`bash
+ps aux | wc -l
 docker ps -a
-docker inspect agent-infiltrator --format '{{.State.Status}}'
-docker logs agent-infiltrator
 \`\`\`
 
-5. Supprime le conteneur pour nettoyer :
+3. Le point clé, à l'intérieur du conteneur : le processus numéro 1. Relance
+   un shell interactif et regarde :
 
 \`\`\`bash
-docker rm agent-infiltrator
+docker run -it alpine /bin/sh
 \`\`\`
+
+À l'intérieur, \`ps aux\`. Le shell que tu as lancé n'est pas numéro 1. **Quel
+est le numéro 1, et pourquoi n'est-ce pas ton shell ?**
+
+4. Le journal du conteneur et celui de la machine sont deux choses séparées.
+   Vérifie :
+
+\`\`\`bash
+docker run -d --name journal alpine sh -c 'echo "secret de la librairie"; sleep 300'
+docker logs journal
+docker exec journal sh -c 'ls /var/log'
+\`\`\`
+
+**Ce que tu observes**
+
+- \`id\` dit \`root\`. Tu es root **dans** le conteneur, et pas sur ta machine.
+  C'est vrai même si tu n'es pas root sur l'hôte : les deux root n'ont rien à
+  voir.
+- \`ps aux\` dans le conteneur ne montre qu'un processus. Dehors, ta machine en
+  a des centaines. Les deux listes ne se recoupent pas.
+- \`/etc/os-release\` dit Alpine, même si ta machine est sous Ubuntu.
+- **Le processus numéro 1 dans le conteneur est le shell du conteneur**, pas le
+  tien. Le noyau démarre un seul processus, le reste de la machine est dans un
+  autre espace. C'est pour ça qu'un PID 1 dans un conteneur doit surveiller ses
+  enfants : quand il meurt, le conteneur s'arrête.
+
+**Ce que ça change en exploitation**
+
+Un conteneur n'est **pas** une frontière de sécurité parfaite. Un programme
+vulnérable tourne avec les droits root *à l'intérieur*. Ce qui protège la
+machine, c'est que le conteneur ne voit qu'un processus, un système de fichiers
+et un réseau restreints. Ce n'est pas une virtualisation : c'est un
+cloisonnement, beaucoup plus léger et beaucoup moins solide.
+
+C'est exactement pourquoi la librairie n'est **pas** seule derrière son
+conteneur : un second conteneur tient le portail, et aucun des deux ne monte le
+répertoire de l'autre en écriture.
 
 **Ton mot de passe**
 
-Il n'est écrit nulle part : il sort du conteneur en marche. Il est différent pour chaque équipe, et le portail ne le livre qu'à toi.
-
-Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a affiché à l'inscription — puis colle ces lignes dans ton terminal :
-
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
-docker exec m3-agent cat /secret.txt && docker rm -f m3-agent
-\`\`\`
-
-Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-04-le-conteneur-est-isole/raw?token=$ARENA_TOKEN"
+\`\`\``,
       hints: [
-        "L'option `-it` associe deux options : `-i` pour garder l'entrée standard ouverte, `-t` pour allouer un terminal.",
-        "Pour que le conteneur ne s'arrête pas aussitôt, il lui faut une commande qui dure : ici le chemin du shell, `/bin/sh`.",
-        "Le mot de passe se récupère sans terminal interactif : un conteneur lancé en arrière-plan et un `docker exec` suffisent.",
+        "`ps aux | wc -l` compte les lignes. Compare le chiffre dehors et celui dedans — l'écart est le cloisonnement, en une seule mesure.",
+        "Le PID 1 est toujours le premier processus que le noyau démarre. Ton shell arrive après : il ne peut pas être le premier.",
+        "`docker exec` entre dans un conteneur **en marche**. Sur un conteneur arrêté, il échoue — c'est ce qui distingue cette quête de l'atelier 2.",
+      ],
+      charge: { perHint: 1, autonomy: [1, 1, 0] },
+      check: [
+        {
+          id: 'm3-04-root',
+          kind: 'mcq',
+          prompt: 'Dans un conteneur Alpine, `id` affiche `uid=0(root)`. Qu\'est-ce que cela dit de tes droits sur la machine hôte ?',
+          choices: [
+            'Rien : ce root est cantonné au conteneur',
+            'Que tu es root sur toute la machine',
+            'Que le conteneur a été lancé avec `sudo`',
+            'Que Docker a modifié tes droits',
+          ],
+          answer: 0,
+          explanation: "C'est le point le plus important de l'atelier, et le plus mal compris. Le root du conteneur est un root dans un espace de noms restreint : il ne voit pas la machine, et ne peut pas y écrire.",
+          required: true,
+        },
+        {
+          id: 'm3-04-pid1',
+          kind: 'mcq',
+          prompt: 'Dans un conteneur, quel processus porte le numéro 1 (PID 1) ?',
+          choices: [
+            'La commande principale du conteneur, lancée par Docker',
+            'Le shell que tu as ouvert avec `docker run -it`',
+            'Le noyau Linux de la machine',
+            'Le démon Docker',
+          ],
+          answer: 0,
+          explanation: "Le noyau démarre un seul processus dans l'espace de noms, et c'est la commande principale du conteneur. Ton shell arrive après et ne peut pas être le premier. D'où la règle : un PID 1 doit surveiller ses enfants.",
+          required: true,
+        },
+        {
+          id: 'm3-04-securite',
+          kind: 'boolean',
+          prompt: 'Un conteneur est une frontière de sécurité aussi solide qu\'une machine virtuelle.',
+          answer: false,
+          explanation: "Faux, et c'est ce que l'atelier doit faire passer. Un conteneur n'est pas une VM : c'est un cloisonnement du noyau, beaucoup plus léger. Un programme vulnérable y tourne en root. La vraie défense est la redondance et le cloisonnement entre conteneurs.",
+          required: true,
+        },
       ],
       solution: `\`\`\`bash
-docker run -it --name agent-infiltrator alpine /bin/sh
-# a l'interieur du conteneur :
-#   $ id
-#   uid=0(root) gid=0(root) groups=0(root)
-#   $ ps aux
-#   PID   USER     TIME  COMMAND
-#     1   root      0:00 /bin/sh            <- le shell du conteneur EST le processus 1
-#   $ cat /etc/os-release
-#   NAME="Alpine Linux"
-#   $ echo "message de l'agent infiltrateur"
-#   message de l'agent infiltrateur
-#   $ exit
+docker run -it --name agent alpine /bin/sh
+# / # id
+# uid=0(root) gid=0(root) groups=0(root)
+# / # ps aux
+# PID   USER     TIME  COMMAND
+#   1   root      0:00 /bin/sh
+# / # cat /etc/os-release
+# NAME="Alpine Linux"
+# / # exit
 
+ps aux | wc -l
+# -> 148          (sur ta machine)
 docker ps -a
-# -> agent-infiltrator  Exited (0) ...
-docker inspect agent-infiltrator --format '{{.State.Status}}'
-# -> exited
-docker logs agent-infiltrator
-# -> message de l'agent infiltrateur   (les journaux survivent a l'arret)
+# -> agent  Exited (0) ...
 
-docker rm agent-infiltrator
-# -> le mot de passe, lui, ne demande aucun terminal interactif :
-#    cf. la section « Ton mot de passe » de l'enonce.
+docker run -it alpine /bin/sh
+# / # ps aux
+#   1   root   0:00 /bin/sh     <- le shell du conteneur, pas le tien
+
+docker run -d --name journal alpine sh -c 'echo "secret de la librairie"; sleep 300'
+docker logs journal
+# -> secret de la librairie
+docker exec journal sh -c 'ls /var/log'
+# -> (vide ou minimal : les journaux du conteneur ne sont pas ceux de la machine)
 \`\`\``,
-      teaches: ['mode interactif', 'isolation des processus', 'PID 1', 'docker logs', 'docker rm'],
+      teaches: ['isolation', 'espace de noms', 'PID 1', 'root cloisonné', 'docker exec'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
-docker exec m3-agent cat /secret.txt && docker rm -f m3-agent`,
-      checkpoint: "Tu as réussi quand `id` a affiché root à l'intérieur du conteneur, que `ps aux` n'a montré aucun processus de ta machine, que `docker logs agent-infiltrator` a retrouvé ton message, et que `docker exec` t'a affiché le mot de passe sans terminal interactif.",
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m3-04-le-conteneur-est-isole/raw?token=$ARENA_TOKEN"`,
+      checkpoint: "Tu as compris quand tu peux expliquer à l'administrateur pourquoi un conteneur n'est pas une machine virtuelle, et ce que ça implique pour la sécurité du site de la librairie.",
     },
   ],
 };
