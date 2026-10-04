@@ -53,11 +53,63 @@ const pack = quests();
 // » affichait des élèves qui n'en étaient pas.
 const equipe = `Verif_${Date.now() % 100000}`;
 
-const reg = await (await fetch(`${B}/api/register`, {
+/**
+ * Un appel JSON au portail, qui **recommence** si le serveur ne répond pas
+ * proprement.
+ *
+ * La V1 faisait `await (await fetch(...)).json()`. Pendant un redéploiement,
+ * Caddy renvoie une 502 au corps vide : le `JSON.parse` levait
+ * « Unexpected end of JSON input », et le rapport disait un bug de JSON alors
+ * que le vrai sujet était « le serveur était indisponible pendant trente
+ * secondes ». Un diagnostic qui accuse le mauvais subsystem coûte plus cher
+ * qu'un diagnostic muet.
+ *
+ * Le repli est justifié ici et seulement ici : ce script vise un portail
+ * déployé, que l'on redémarre à côté. Les tests unitaires, eux, ne doivent
+ * jamais réessayer — un test qui passe au deuxième essai ne teste rien.
+ */
+async function api(chemin, init, tentatives = 3) {
+  for (let essai = 1; ; essai += 1) {
+    let r;
+    let texte = '';
+    try {
+      r = await fetch(`${B}${chemin}`, init);
+      texte = await r.text();
+    } catch (e) {
+      if (essai >= tentatives) {
+        throw new Error(`${chemin} : le portail ${B} ne répond pas (${e.message})`);
+      }
+      console.warn(`  … ${chemin} : ${e.message} — nouvel essai dans 5 s`);
+      await new Promise((s) => setTimeout(s, 5000));
+      continue;
+    }
+    if (!r.ok) {
+      if (r.status >= 500 && essai < tentatives) {
+        // 502/503 : le portail est en train de redémarrer. C'est transitoire.
+        console.warn(`  … ${chemin} : HTTP ${r.status} — nouvel essai dans 5 s`);
+        await new Promise((s) => setTimeout(s, 5000));
+        continue;
+      }
+      throw new Error(`${chemin} : HTTP ${r.status} — ${texte.slice(0, 200)}`);
+    }
+    try {
+      return JSON.parse(texte);
+    } catch (e) {
+      if (essai < tentatives) {
+        console.warn(`  … ${chemin} : réponse illisible — nouvel essai dans 5 s`);
+        await new Promise((s) => setTimeout(s, 5000));
+        continue;
+      }
+      throw new Error(`${chemin} : réponse illisible — ${texte.slice(0, 200)}`);
+    }
+  }
+}
+
+const reg = await api('/api/register', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ team: equipe, mode: 'normal' }),
-})).json();
+});
 if (!reg.token) {
   console.error('inscription impossible :', reg.error ?? reg);
   process.exit(1);

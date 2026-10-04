@@ -426,6 +426,29 @@ test('le contrat décrit la fermeture de l\'administration', () => {
   }
 });
 
+test('check-fetchhints dit ce qui s\'est mal passé, et réessaie', () => {
+  // Pendant un redéploiement, Caddy renvoie une 502 au corps vide. La V1 faisait
+  // `await (await fetch(...)).json()` : le `JSON.parse` levait « Unexpected end
+  // of JSON input » et le rapport accusait un bug de JSON, alors que le vrai
+  // sujet était « le serveur était indisponible pendant trente secondes ».
+  const script = read('scripts/check-fetchhints.js');
+
+  assert.match(script, /async function api\(/,
+    'un seul point d\'appel JSON, qui sait dire ce qui a échoué');
+  assert.match(script, /r\.status >= 500 && essai < tentatives/,
+    'une 5xx est transitoire : le portail redémarre');
+  assert.match(script, /ne répond pas/,
+    'et un refus réseau doit le dire comme tel, pas « réponse illisible »');
+  assert.doesNotMatch(script, /await \(await fetch\(`\$\{B\}\/api\/register`/,
+    'plus de .json() direct sur une réponse dont on ignore le statut');
+
+  // Le repli est borné : un portail réellement mort doit terminer, pas boucler.
+  const tentatives = script.match(/tentatives = (\d+)/);
+  assert.ok(tentatives, 'le nombre de tentatives doit être explicite');
+  assert.ok(Number(tentatives[1]) <= 5,
+    'au-delà de cinq essais, ce n\'est plus transitoire');
+});
+
 test('le contrat et le README annoncent les mêmes chiffres', () => {
   const readme = read('README.md');
   const annonce = readme.match(/npm test\s+#\s*(\d+) tests/);
