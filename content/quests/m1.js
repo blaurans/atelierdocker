@@ -60,7 +60,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-01-image-ou-conteneur/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-01-image-ou-conteneur/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -82,7 +82,7 @@ docker ps
 \`\`\``,
       teaches: ['image', 'conteneur', 'modèle figé', 'processus'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-01-image-ou-conteneur/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-01-image-ou-conteneur/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
       checkpoint: "Tu as réussi quand `docker ps` renvoie une liste vide alors que `docker images` te donne au moins une ligne, et quand tu arrives à expliquer la différence en une phrase.",
     },
 
@@ -143,7 +143,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-02-qui-tourne-qui-dort/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-02-qui-tourne-qui-dort/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -171,7 +171,7 @@ docker system df
 \`\`\``,
       teaches: ['docker ps', 'docker ps -a', 'statut Up', 'statut Exited', 'docker system df'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-02-qui-tourne-qui-dort/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-02-qui-tourne-qui-dort/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
       checkpoint: "Tu as réussi quand tu as vu le statut passer de Up à Exited puis revenir à Up, et quand `docker system df` t'a affiché un tableau d'espace disque.",
     },
 
@@ -231,7 +231,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-03-la-doc-dans-le-terminal/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-03-la-doc-dans-le-terminal/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -261,7 +261,7 @@ docker version --format '{{.Server.Os}} / {{.Server.Arch}}'
 \`\`\``,
       teaches: ['docker help', 'docker version', 'option --help', 'option --format', 'client et serveur'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'http://SERVER_IP:8000/api/secret/m1-03-la-doc-dans-le-terminal/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
+docker run --rm alpine sh -c "mkdir -p /arena && wget -qO /arena/secret.txt 'https://SERVER_IP/api/secret/m1-03-la-doc-dans-le-terminal/raw?token=$ARENA_TOKEN' && cat /arena/secret.txt"`,
       checkpoint: "Tu as réussi quand tu as trouvé la ligne d'aide de `--rm` sans quitter le terminal, et quand `docker version --format` t'affiche une seule ligne.",
     },
   ],

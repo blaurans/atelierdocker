@@ -66,7 +66,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
+docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8081 && docker rm -f pont-8081
 \`\`\`
 
@@ -97,7 +97,7 @@ docker rm -f pont-demo
 \`\`\``,
       teaches: ['docker network ls', 'docker network inspect', 'réseau bridge', 'NetworkMode', 'adresse IP privée'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
+docker rm -f pont-8081 > /dev/null 2>&1; docker run -d -p 8081:80 --name pont-8081 nginx:alpine && docker exec pont-8081 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-01-reseau-par-defaut/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8081 && docker rm -f pont-8081`,
       checkpoint: "Tu as réussi quand `docker network ls` montre les trois réseaux bridge, host et none, et que tu sais dire sur quel réseau est branché un conteneur lancé sans option réseau.",
     },
@@ -181,7 +181,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
+docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:9090 && docker rm -f pont-9090
 \`\`\`
 
@@ -221,7 +221,7 @@ docker rm pont-auto pont-port
 \`\`\``,
       teaches: ['option -p', 'option -P', 'docker port', 'colonne PORTS', 'curl -I'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
+docker rm -f pont-9090 > /dev/null 2>&1; docker run -d -p 9090:80 --name pont-9090 nginx:alpine && docker exec pont-9090 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-02-traduire-un-port/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:9090 && docker rm -f pont-9090`,
       checkpoint: "Tu as réussi quand `curl -I http://localhost:9090` a répondu `200 OK`, et quand `docker port pont-port` t'a montré la traduction 9090 vers 80.",
     },
@@ -311,7 +311,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
+docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8082 && docker rm -f pont-8082
 \`\`\`
 
@@ -349,7 +349,7 @@ docker network rm arena-net
 \`\`\``,
       teaches: ['docker network create', 'option --network', 'résolution DNS interne', 'wget', 'redis-cli'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
+docker rm -f pont-8082 > /dev/null 2>&1; docker run -d -p 8082:80 --name pont-8082 nginx:alpine && docker exec pont-8082 wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-03-se-parler-par-son-nom/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8082 && docker rm -f pont-8082`,
       checkpoint: "Tu as réussi quand `wget -qO- http://arena-web/` a affiché la page servie par `arena-web` depuis un conteneur du réseau `arena-net`, quand la même commande a échoué sur le réseau par défaut, et quand `curl` a affiché ton mot de passe sur le port publié.",
     },
@@ -390,7 +390,7 @@ curl -I http://localhost:8080
 4. Défi : modifie **en direct** la page servie, sans arrêter le conteneur, grâce à \`docker exec\`. Pose d'abord ton jeton d'équipe — celui affiché à l'inscription — avec la commande \`export ARENA_TOKEN='dq_…'\`, puis :
 
 \`\`\`bash
-docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
+docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
 \`\`\`
 
 5. Vérifie la modification, toujours sans redémarrer quoi que ce soit :
@@ -415,7 +415,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
+docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8080 && docker rm -f mission-webserver
 \`\`\`
 
@@ -436,7 +436,7 @@ curl -I http://localhost:8080
 # -> HTTP/1.1 200 OK
 #    Server: nginx/1.27.x
 
-docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
+docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
 curl http://localhost:8080
 # -> FLAG{...}    le mot de passe de TON equipe, servi par le conteneur
 
@@ -447,7 +447,7 @@ docker stop mission-webserver && docker rm mission-webserver
 \`\`\``,
       teaches: ['déploiement web', 'traduction de port 8080', 'docker exec en production', 'nginx'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "http://SERVER_IP:8000/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
+docker rm -f mission-webserver > /dev/null 2>&1; docker run -d -p 8080:80 --name mission-webserver nginx:alpine && docker exec mission-webserver wget -qO /usr/share/nginx/html/index.html "https://SERVER_IP/api/secret/m4-04-port-master/raw?token=$ARENA_TOKEN"
 curl -s --retry 5 --retry-delay 1 http://SERVER_IP:8080 && docker rm -f mission-webserver`,
       checkpoint: "Tu as réussi quand `curl http://localhost:8080` affiche le mot de passe sans qu'aucun conteneur n'ait été redémarré, puis quand le conteneur a été supprimé.",
     },

@@ -4,16 +4,24 @@
  * réellement : on l'exécute telle quelle, dans un conteneur jetable, contre un
  * portail de test.
  *
- *   node scripts/check-fetchhints.js [http://IP:8000]
+ *   node scripts/check-fetchhints.js [https://atelierdocker.laurans.org]
  *
  * Prérequis : un serveur qui tourne et un jeton. Le script s'inscrit tout seul
  * (« VerifSecrets ») et récupère son jeton.
+ *
+ * ATTENTION : ce script exécute de vraies commandes `docker run` sur la
+ * machine où il tourne — des conteneurs jetables, mais il faut Docker, et il
+ * faut la permission de lancer des conteneurs. En salle, le lancer depuis le
+ * poste de l'enseignant, pas depuis celui d'un élève.
  */
 import { spawn } from 'node:child_process';
 
-const B = process.argv[2] ?? 'http://127.0.0.1:8000';
-// SERVER_IP désigne l'hôte SANS port : les commandes portent déjà « :8000 ».
-const HOSTNAME = new URL(B).hostname;
+const B = process.argv[2] ?? 'https://atelierdocker.laurans.org';
+// SERVER_IP désigne l'origine complète, protocole compris : le portail est
+// derrière Caddy, donc les commandes doivent repartir en https et sans port.
+// Avec TRUST_PROXY=1, `req.protocol` vaut https et `req.hostname` ne porte
+// pas de port — voir src/routes/api.js, champ fetch_hint.
+const HOSTNAME = new URL(B).origin;
 
 const { quests } = await import('../src/questpack.js');
 const pack = quests();

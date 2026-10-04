@@ -1,28 +1,30 @@
-# Portail Docker Ops Race.
+# Portail « Atelier Docker ».
 #
 #   docker compose up -d --build
-#   → http://<IP>:8000
 #
-# Pour le déplacer ailleurs : copier ce dossier et ce fichier, rien d'autre.
+# Le portail n'est PAS publié sur la machine : il n'est joignable que par
+# Caddy, qui partage le réseau Docker `headscale_default`. Voir README § Mise
+# en ligne. Aucune ligne `ports:` ici — c'est volontaire. Le portail est
+# un service interne, pas un serveur web de face.
 
 services:
-  arena:
+  atelier:
     build:
       context: .
       dockerfile: Dockerfile
-    image: docker-ops-race:1.0
-    container_name: docker_ops_race
+    image: atelier-docker:2.0
+    container_name: atelier-docker
     restart: unless-stopped
-    ports:
-      - "${ARENA_PORT:-8000}:8000"
     environment:
       NODE_ENV: production
       PORT: "8000"
       # Base sur un volume nommé : les scores survivent à un `down` / `up`.
-      DB_FILE: /data/arena.sqlite
-      # Clé d'administration pour /api/stats et /api/admin/*. Laisser vide
-      # rend l'administration ouverte : pratique en salle, à fermer ensuite.
-      ADMIN_KEY: "${ARENA_ADMIN_KEY:-}"
+      DB_FILE: /data/atelier.sqlite
+      # Clé d'administration pour /api/stats et /api/admin/*. Ces endpoints
+      # suppriment des données (reset, delete) : sur une URL publique, une clé
+      # vide les laisse ouverts à quiconque trouve l'adresse. Le compose
+      # refuse de démarrer sans clé, c'est le `:?` de la ligne ci-dessous.
+      ADMIN_KEY: "${ATELIER_ADMIN_KEY:?ADMIN_KEY obligatoire — voir .env.example}"
       # 1 = un flag correct reste « en attente » jusqu'à validation manuelle
       # de l'enseignant. Voir README § Limites.
       REQUIRE_ATTESTATION: "${ARENA_ATTESTATION:-0}"
@@ -35,11 +37,16 @@ services:
       # Plafonds de débit par IP et par route (fenêtre d'une minute).
       # `off` désactive tout plafond.
       RATE_LIMIT: "${ARENA_RATE_LIMIT:-on}"
-      # 1 seulement derrière un vrai reverse proxy : le comptage se fait alors
-      # sur X-Forwarded-For, forgeable si le portail est exposé directement.
-      TRUST_PROXY: "${ARENA_TRUST_PROXY:-}"
+      # 1 derrière le reverse proxy Caddy : c'est lui qui parle au portail, et
+      # c'est donc le seul cas où X-Forwarded-For et X-Forwarded-Proto sont
+      # dignes de confiance. Sans ce réglage, les commandes de récupération
+      # de mot de passe sont régénérées en `http://` alors que l'élève les
+      # tape depuis une page servie en `https://`.
+      TRUST_PROXY: "${ATELIER_TRUST_PROXY:-1}"
     volumes:
-      - arena-data:/data
+      - atelier-data:/data
+    networks:
+      - caddy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/healthz"]
       interval: 30s
@@ -55,5 +62,14 @@ services:
         max-file: "3"
 
 volumes:
-  arena-data:
-    name: docker-ops-race-data
+  atelier-data:
+    name: atelier-docker-data
+
+# Réseau du reverse proxy déjà en place sur la machine. `external: true`
+# signale à Compose de ne pas tenter de le créer : il existe déjà, caddy y
+# est. C'est ce qui permet à Caddy de joindre le portail par son nom
+# (atelier-docker:8000) sans publier le moindre port sur l'hôte.
+networks:
+  caddy:
+    external: true
+    name: headscale_default

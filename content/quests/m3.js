@@ -73,7 +73,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
+docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
 docker exec m3-prepa cat /secret.txt && docker rm -f m3-prepa
 \`\`\`
 
@@ -108,7 +108,7 @@ docker rm journal
 \`\`\``,
       teaches: ['docker create', 'docker start', 'docker logs', 'option --name', 'statut Created'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
+docker rm -f m3-prepa > /dev/null 2>&1; docker run -d --name m3-prepa alpine sleep 300 && docker exec m3-prepa wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-01-creer-sans-demarrer/raw?token=$ARENA_TOKEN"
 docker exec m3-prepa cat /secret.txt && docker rm -f m3-prepa`,
       checkpoint: "Tu as réussi quand tu as vu le statut passer de Created à Up puis à Exited sur le même conteneur, et quand ses logs sont restés lisibles après l'arrêt.",
     },
@@ -178,7 +178,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
+docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
 docker exec m3-horloge cat /secret.txt && docker rm -f m3-horloge
 \`\`\`
 
@@ -215,7 +215,7 @@ docker ps -a
 \`\`\``,
       teaches: ['option -d', 'docker pause', 'docker unpause', 'docker restart', 'docker kill'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
+docker rm -f m3-horloge > /dev/null 2>&1; docker run -d --name m3-horloge alpine sleep 300 && docker exec m3-horloge wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-02-verbes-du-cycle-de-vie/raw?token=$ARENA_TOKEN"
 docker exec m3-horloge cat /secret.txt && docker rm -f m3-horloge`,
       checkpoint: "Tu as réussi quand `docker ps` a affiché le statut *Up (Paused)* juste après `docker pause`, et quand le conteneur a disparu de `docker ps -a` après le `docker rm` final.",
     },
@@ -295,7 +295,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
+docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
 docker cp m3-atelier:/secret.txt ./secret.txt && cat ./secret.txt && docker rm -f m3-atelier && rm -f ./secret.txt
 \`\`\`
 
@@ -331,7 +331,7 @@ docker rm -f atelier-renomme
 \`\`\``,
       teaches: ['docker exec', 'options -i et -t', 'docker cp', 'docker rename'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
+docker rm -f m3-atelier > /dev/null 2>&1; docker run -d --name m3-atelier alpine sleep 300 && docker exec m3-atelier wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-03-entrer-sortir-renommer/raw?token=$ARENA_TOKEN"
 docker cp m3-atelier:/secret.txt ./secret.txt && cat ./secret.txt && docker rm -f m3-atelier && rm -f ./secret.txt`,
       checkpoint: "Tu as réussi quand le fichier écrit dans le conteneur apparaît sur ta machine avec `docker cp`, et quand `docker ps` affiche le nouveau nom après le renommage.",
     },
@@ -393,7 +393,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
+docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
 docker exec m3-agent cat /secret.txt && docker rm -f m3-agent
 \`\`\`
 
@@ -430,7 +430,7 @@ docker rm agent-infiltrator
 \`\`\``,
       teaches: ['mode interactif', 'isolation des processus', 'PID 1', 'docker logs', 'docker rm'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
+docker rm -f m3-agent > /dev/null 2>&1; docker run -d --name m3-agent alpine sleep 300 && docker exec m3-agent wget -qO /secret.txt "https://SERVER_IP/api/secret/m3-04-infiltration-interactive/raw?token=$ARENA_TOKEN"
 docker exec m3-agent cat /secret.txt && docker rm -f m3-agent`,
       checkpoint: "Tu as réussi quand `id` a affiché root à l'intérieur du conteneur, que `ps aux` n'a montré aucun processus de ta machine, que `docker logs agent-infiltrator` a retrouvé ton message, et que `docker exec` t'a affiché le mot de passe sans terminal interactif.",
     },

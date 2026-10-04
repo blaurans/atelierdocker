@@ -25,6 +25,27 @@ export const modeLabel = (m) => (m === 'competitive' ? 'Compétitif' : 'Normal')
 
 const normalizeFlag = (raw) => String(raw ?? '').trim().toUpperCase();
 
+/**
+ * L'origine sous laquelle l'élève a réellement joint le portail.
+ *
+ * C'est important derrière un reverse proxy TLS. Le portail écoute en HTTP
+ * sur 8000 à l'intérieur du conteneur, mais l'élève voit `https://` dans sa
+ * barre d'adresse et doit taper des commandes qui partent en clair si on
+ * reconstruit l'URL depuis l'intérieur : le paquet ne sort pas du réseau du
+ * lab, et sur un réseau d'établissement c'est une fuite de ses mots de passe.
+ *
+ * `req.protocol` ne renvoie `https` que si Express fait confiance à
+ * X-Forwarded-Proto — d'où TRUST_PROXY=1 côté compose.
+ *
+ * On s'appuie sur `req.hostname`, qui — comme `req.host`, déprécié en
+ * Express 5 — retire le port. C'est sans importance en production : le
+ * portail n'est joignable que par Caddy, en 443, donc l'origine reconstruite
+ * est la bonne. En revanche un accès direct au conteneur sur un port non
+ * standard produirait une commande visant le port 80. Ce cas n'existe que
+ * pour un portage local, où le portail est en `http` de toute façon.
+ */
+const origin = (req) => `${req.protocol}://${req.hostname}`;
+
 /* ------------------------------------------------------------------ secrets */
 
 /**
@@ -169,13 +190,18 @@ api.get('/quests', plafonds.quests, (req, res, next) => {
           // n'existe pas dans le contenu. Le champ reste dans la base pour
           // l'anti-doublon, mais il ne sort jamais d'ici.
           hints: q.hints,
-          // La commande de récupération, prête à coller. SERVER_IP devient
-          // l'hôte **sans port** (les commandes portent déjà « :8000 ») et le
-          // jeton du joueur remplace le littéral : sans lui un conteneur ne peut
-          // rien récupérer.
+          // La commande de récupération, prête à coller. Voir `origin()` plus
+          // haut pour pourquoi c'est l'origine complète plutôt que le seul
+          // hôte. Le préfixe est remplacé en entier, « https://SERVER_IP »
+          // comme « http://SERVER_IP », parce que le contenu est la source de
+          // vérité et porte déjà « https:// » : substituer une origine entière
+          // à un protocole seul produirait « https://https://… ». Le jeton du
+          // joueur remplace le littéral : sans lui, aucun conteneur ne peut rien
+          // récupérer.
           fetch_hint: q.fetchHint && player
             ? q.fetchHint
-              .replaceAll('SERVER_IP', req.hostname)
+              .replaceAll('https://SERVER_IP', origin(req))
+              .replaceAll('http://SERVER_IP', origin(req))
               .replaceAll('dq_xxxxxxxxxxxxxxxx', player.token)
             : null,
           // La correction n'est envoyée qu'une fois la mission validée : le
@@ -504,8 +530,8 @@ const COMMAND_SHEET = [
   { action: 'Démarrer la pile Compose', cmd: 'docker compose up -d' },
   { action: 'État de la pile Compose', cmd: 'docker compose ps' },
   { action: 'Arrêter la pile Compose', cmd: 'docker compose down' },
-  { action: "S'inscrire (compétitif)", cmd: `curl -X POST http://<IP>:8000/api/register -H "Content-Type: application/json" -d '{"team":"MonPseudo","mode":"competitive"}'` },
-  { action: "S'inscrire (normal)", cmd: `curl -X POST http://<IP>:8000/api/register -H "Content-Type: application/json" -d '{"team":"Alice_Bob","mode":"normal"}'` },
-  { action: 'Soumettre un flag', cmd: `curl -X POST http://<IP>:8000/api/submit -H "Content-Type: application/json" -H "X-Arena-Token: dq_..." -d '{"flag":"FLAG{...}"}'` },
-  { action: 'Voir le classement', cmd: 'curl http://<IP>:8000/api/overview' },
+  { action: "S'inscrire (compétitif)", cmd: `curl -X POST https://atelierdocker.laurans.org/api/register -H "Content-Type: application/json" -d '{"team":"MonPseudo","mode":"competitive"}'` },
+  { action: "S'inscrire (normal)", cmd: `curl -X POST https://atelierdocker.laurans.org/api/register -H "Content-Type: application/json" -d '{"team":"Alice_Bob","mode":"normal"}'` },
+  { action: 'Soumettre un flag', cmd: `curl -X POST https://atelierdocker.laurans.org/api/submit -H "Content-Type: application/json" -H "X-Arena-Token: dq_..." -d '{"flag":"FLAG{...}"}'` },
+  { action: 'Voir le classement', cmd: 'curl https://atelierdocker.laurans.org/api/overview' },
 ];

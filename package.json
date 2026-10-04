@@ -1,7 +1,7 @@
 {
-  "name": "docker-ops-race",
-  "version": "1.0.0",
-  "description": "Docker Ops Race : The Container Arena — serious game d'apprentissage de Docker en binômes, mode compétitif ou mode normal.",
+  "name": "atelier-docker",
+  "version": "2.0.0",
+  "description": "Atelier Docker — serious game d'apprentissage de Docker en ateliers d'une heure, avec comprehension verifiee et indice a cout.",
   "type": "module",
   "private": true,
   "license": "MIT",

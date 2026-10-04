@@ -66,7 +66,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create m6-fragile && docker run --rm -v m6-fragile:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'http://SERVER_IP:8000/api/secret/m6-01-tout-disparait/raw?token=$ARENA_TOKEN'"
+docker volume create m6-fragile && docker run --rm -v m6-fragile:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'https://SERVER_IP/api/secret/m6-01-tout-disparait/raw?token=$ARENA_TOKEN'"
 docker run --rm -v m6-fragile:/donnees alpine cat /donnees/secret.txt && docker volume rm m6-fragile
 \`\`\`
 
@@ -91,7 +91,7 @@ docker run --rm alpine sh -c 'cat /tmp/cle.txt || echo "fichier absent : la donn
 \`\`\``,
       teaches: ['système de fichiers éphémère', 'docker rm', 'docker exec', 'perte de données'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create m6-fragile && docker run --rm -v m6-fragile:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'http://SERVER_IP:8000/api/secret/m6-01-tout-disparait/raw?token=$ARENA_TOKEN'"
+docker volume create m6-fragile && docker run --rm -v m6-fragile:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'https://SERVER_IP/api/secret/m6-01-tout-disparait/raw?token=$ARENA_TOKEN'"
 docker run --rm -v m6-fragile:/donnees alpine cat /donnees/secret.txt && docker volume rm m6-fragile`,
       checkpoint: "Tu as réussi quand le fichier était lisible avant le `docker rm`, et quand un conteneur neuf affiche le message « fichier absent » après.",
     },
@@ -169,7 +169,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create m6-partage && docker run --rm -v m6-partage:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'http://SERVER_IP:8000/api/secret/m6-02-dossier-partage/raw?token=$ARENA_TOKEN'"
+docker volume create m6-partage && docker run --rm -v m6-partage:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'https://SERVER_IP/api/secret/m6-02-dossier-partage/raw?token=$ARENA_TOKEN'"
 docker run --rm -v m6-partage:/donnees alpine cat /donnees/secret.txt && docker volume rm m6-partage
 \`\`\`
 
@@ -207,7 +207,7 @@ ls -n data
 \`\`\``,
       teaches: ['bind mount', 'option -v', 'partage de dossier', 'permissions', 'option --user'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create m6-partage && docker run --rm -v m6-partage:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'http://SERVER_IP:8000/api/secret/m6-02-dossier-partage/raw?token=$ARENA_TOKEN'"
+docker volume create m6-partage && docker run --rm -v m6-partage:/donnees alpine sh -c "wget -qO /donnees/secret.txt 'https://SERVER_IP/api/secret/m6-02-dossier-partage/raw?token=$ARENA_TOKEN'"
 docker run --rm -v m6-partage:/donnees alpine cat /donnees/secret.txt && docker volume rm m6-partage`,
       checkpoint: "Tu as réussi quand un fichier créé dans le conteneur apparaît dans `data/` sur ta machine, et quand `ls -n data` montre le fichier `uid.txt` appartenant à root, avant l'étape 6.",
     },
@@ -279,7 +279,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create notes_volume && docker run --rm -v notes_volume:/donnees alpine sh -c "wget -qO /donnees/etiquette.txt 'http://SERVER_IP:8000/api/secret/m6-03-volume-nomme/raw?token=$ARENA_TOKEN'"
+docker volume create notes_volume && docker run --rm -v notes_volume:/donnees alpine sh -c "wget -qO /donnees/etiquette.txt 'https://SERVER_IP/api/secret/m6-03-volume-nomme/raw?token=$ARENA_TOKEN'"
 docker run --rm -v notes_volume:/donnees alpine cat /donnees/etiquette.txt && docker volume rm notes_volume
 \`\`\`
 
@@ -315,7 +315,7 @@ docker volume prune -f
 \`\`\``,
       teaches: ['docker volume create', 'docker volume ls', 'docker volume inspect', 'option --mount', 'docker volume prune'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create notes_volume && docker run --rm -v notes_volume:/donnees alpine sh -c "wget -qO /donnees/etiquette.txt 'http://SERVER_IP:8000/api/secret/m6-03-volume-nomme/raw?token=$ARENA_TOKEN'"
+docker volume create notes_volume && docker run --rm -v notes_volume:/donnees alpine sh -c "wget -qO /donnees/etiquette.txt 'https://SERVER_IP/api/secret/m6-03-volume-nomme/raw?token=$ARENA_TOKEN'"
 docker run --rm -v notes_volume:/donnees alpine cat /donnees/etiquette.txt && docker volume rm notes_volume`,
       checkpoint: "Tu as réussi quand un second conteneur, sans lien avec le premier, a affiché le fichier déposé dans le volume, et quand `docker volume ls` ne liste plus `notes_volume` après le nettoyage.",
     },
@@ -342,7 +342,7 @@ docker volume create vault_data
 2. Pose d'abord ton jeton d'équipe — celui affiché à l'inscription — avec la commande \`export ARENA_TOKEN='dq_…'\`, puis démarre un conteneur éphémère qui va chercher ton mot de passe au portail et l'écrit dans ce volume avant de s'autodétruire :
 
 \`\`\`bash
-docker run --rm -v vault_data:/vault alpine sh -c "wget -qO /vault/safe.key 'http://SERVER_IP:8000/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
+docker run --rm -v vault_data:/vault alpine sh -c "wget -qO /vault/safe.key 'https://SERVER_IP/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
 \`\`\`
 
 3. Le test de continuité : démarre un second conteneur, **distinct**, pour relire la donnée stockée dans le volume. Note bien qu'il ne monte pas le volume au même endroit :
@@ -368,7 +368,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create vault_data && docker run --rm -v vault_data:/donnees alpine sh -c "wget -qO /donnees/safe.key 'http://SERVER_IP:8000/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
+docker volume create vault_data && docker run --rm -v vault_data:/donnees alpine sh -c "wget -qO /donnees/safe.key 'https://SERVER_IP/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
 docker run --rm -v vault_data:/donnees alpine cat /donnees/safe.key && docker volume rm vault_data
 \`\`\`
 
@@ -382,7 +382,7 @@ Le second conteneur affiche le mot de passe : envoie-le tel quel au portail.`,
 docker volume create vault_data
 # -> vault_data
 
-docker run --rm -v vault_data:/vault alpine sh -c "wget -qO /vault/safe.key 'http://SERVER_IP:8000/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
+docker run --rm -v vault_data:/vault alpine sh -c "wget -qO /vault/safe.key 'https://SERVER_IP/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
 # -> le conteneur ecrit, puis disparait immediatement (--rm)
 
 docker run --rm -v vault_data:/backup alpine cat /backup/safe.key
@@ -398,7 +398,7 @@ docker volume rm vault_data
 \`\`\``,
       teaches: ['volume nommé', 'persistance des données', 'docker volume rm', 'test de continuité'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker volume create vault_data && docker run --rm -v vault_data:/donnees alpine sh -c "wget -qO /donnees/safe.key 'http://SERVER_IP:8000/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
+docker volume create vault_data && docker run --rm -v vault_data:/donnees alpine sh -c "wget -qO /donnees/safe.key 'https://SERVER_IP/api/secret/m6-04-persistence-guardian/raw?token=$ARENA_TOKEN'"
 docker run --rm -v vault_data:/donnees alpine cat /donnees/safe.key && docker volume rm vault_data`,
       checkpoint: "Tu as réussi quand un second conteneur sans lien avec le premier a affiché le mot de passe, et quand `docker volume ls` confirme que le volume existe encore après la disparition des conteneurs.",
     },

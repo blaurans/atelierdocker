@@ -44,7 +44,7 @@ export function secretFor(player, quest) {
  * les secrets déjà distribués, ce qui est le comportement voulu après un
  * reset.
  */
-const SEL = process.env.ARENA_SALT ?? 'docker-ops-race-v1';
+const SEL = process.env.ARENA_SALT ?? 'atelier-docker-v2';
 const salt = () => SEL;
 
 /** Sépare les secrets par module pour un diagnostic lisible. */

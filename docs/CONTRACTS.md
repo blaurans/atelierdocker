@@ -98,7 +98,7 @@ Exemple (module 4) :
 
 ```js
 fetchHint: `docker run --rm -p 8080:80 nginx:alpine &
-curl -s http://SERVER_IP:8000/api/secret/m4-04-port-master/raw`
+curl -s https://SERVER_IP/api/secret/m4-04-port-master/raw`
 ```
 
 ### 1.3 Interdiction de mentionner le mot de passe
@@ -139,7 +139,7 @@ barème réel est donc 2 800 points au total, avec des intermédiaires à
 
 ## 2. Contrat d'API
 
-Base : `http://<IP>:8000`. JSON en entrée et sortie, sauf indication contraire.
+Base : `https://atelierdocker.laurans.org`. JSON en entrée et sortie, sauf indication contraire.
 
 ### 2.1 `POST /api/register`
 

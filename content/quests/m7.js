@@ -80,7 +80,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
 \`\`\`
 
@@ -134,7 +134,7 @@ docker compose ls
 \`\`\``,
       teaches: ['docker compose version', 'docker compose config', 'fichier YAML', 'clé services', 'environment'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
       checkpoint: "Tu as réussi quand `docker compose config` affiche ton fichier normalisé, avec le nom du réseau que Compose créera et la variable d'environnement dans la section environment.",
     },
@@ -238,7 +238,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 4 && docker compose logs journal && docker compose down
 \`\`\`
 
@@ -308,7 +308,7 @@ docker compose ls
 \`\`\``,
       teaches: ['docker compose up', 'docker compose ps', 'docker compose logs', 'docker compose exec', 'docker compose down'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 4 && docker compose logs journal && docker compose down`,
       checkpoint: "Tu as réussi quand `docker compose logs ticker` affiche le message du service, quand après `docker compose down` puis `docker compose up -d` les deux services sont de nouveau démarrés sans aucune autre commande, et quand les journaux de la pile t'ont affiché ton mot de passe.",
     },
@@ -423,7 +423,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 5 && docker compose logs journal && docker compose down
 \`\`\`
 
@@ -505,7 +505,7 @@ docker compose down
 \`\`\``,
       teaches: ['docker compose up', 'docker compose down', 'multi-services', 'depends_on', 'réseau de projet'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- http://SERVER_IP:8000/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
+mkdir -p /tmp/arena-m7 && cd /tmp/arena-m7 && printf '%s\\n' 'services:' '  web:' '    image: nginx:alpine' '  cache:' '    image: redis:alpine' '  journal:' '    image: alpine' '    depends_on:' '      - web' '      - cache' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-compose-overlord/raw?token=$ARENA_TOKEN" > compose.yaml
 docker compose up -d && sleep 5 && docker compose logs journal && docker compose down`,
       checkpoint: "Tu as réussi quand `curl http://localhost:3000` affiche le message de victoire, quand `docker compose ps` montre les deux services démarrés, quand `docker compose down` a tout arrêté d'une seule commande, et quand `docker compose logs` t'a affiché ton mot de passe.",
     },

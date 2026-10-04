@@ -71,7 +71,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-01-le-raccourci-oublie/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-01:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-01-le-raccourci-oublie/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-01:1.0 -
 docker run --rm pass-m5-01:1.0 && docker rmi pass-m5-01:1.0
 \`\`\`
 
@@ -106,7 +106,7 @@ docker rmi atelier-oublie:1.0
 \`\`\``,
       teaches: ['docker commit', 'docker rmi', 'non-reproductibilité', 'anti-pattern', 'Dockerfile'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-01-le-raccourci-oublie/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-01:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-01-le-raccourci-oublie/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-01:1.0 -
 docker run --rm pass-m5-01:1.0 && docker rmi pass-m5-01:1.0`,
       checkpoint: "Tu as réussi quand `docker history atelier-oublie:1.0` ne montre qu'une seule couche au-dessus de l'image alpine, alors que `cat /tmp/carnet.txt` renvoie bien la modification que tu as faite.",
     },
@@ -201,7 +201,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-02-instructions-du-dockerfile/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-02:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-02-instructions-du-dockerfile/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-02:1.0 -
 docker run --rm pass-m5-02:1.0 && docker rmi pass-m5-02:1.0
 \`\`\`
 
@@ -252,7 +252,7 @@ docker run --rm arena-notices:2.0 cat /app/build-info.txt
 \`\`\``,
       teaches: ['Dockerfile', 'FROM', 'RUN', 'WORKDIR', 'COPY'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-02-instructions-du-dockerfile/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-02:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-02-instructions-du-dockerfile/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-02:1.0 -
 docker run --rm pass-m5-02:1.0 && docker rmi pass-m5-02:1.0`,
       checkpoint: "Tu as réussi quand `docker run --rm arena-notices:1.0` affiche le contenu de ton fichier, et quand la seconde construction affiche des étapes marquées CACHED.",
     },
@@ -332,7 +332,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-03-cmd-entrypoint-pid1/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-03:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-03-cmd-entrypoint-pid1/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-03:1.0 -
 docker run --rm pass-m5-03:1.0 && docker rmi pass-m5-03:1.0
 \`\`\`
 
@@ -377,7 +377,7 @@ docker rm demon-pid1
 \`\`\``,
       teaches: ['ENTRYPOINT', 'CMD', 'forme exec', 'forme shell', 'PID 1'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-03-cmd-entrypoint-pid1/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-03:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-03-cmd-entrypoint-pid1/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-03:1.0 -
 docker run --rm pass-m5-03:1.0 && docker rmi pass-m5-03:1.0`,
       checkpoint: "Tu as réussi quand le fichier `/etc/hostname` s'est affiché **en plus** du message d'accueil, et quand `ps` dans le conteneur a montré le programme principal en PID 1.",
     },
@@ -467,7 +467,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-04-image-alchemist/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-04:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-04-image-alchemist/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-04:1.0 -
 docker run --rm pass-m5-04:1.0 && docker rmi pass-m5-04:1.0
 \`\`\`
 
@@ -521,7 +521,7 @@ docker stop custom-agent && docker rm custom-agent
 \`\`\``,
       teaches: ['construction d\'image', 'Dockerfile', 'EXPOSE', 'CMD', 'microserveur Python'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "http://SERVER_IP:8000/api/secret/m5-04-image-alchemist/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-04:1.0 -
+printf '%s\\n' 'FROM alpine:3.20' 'ARG ARENA' 'RUN wget -qO /secret.txt "https://SERVER_IP/api/secret/m5-04-image-alchemist/raw?token=$ARENA"' 'CMD ["cat","/secret.txt"]' | docker build -q --build-arg ARENA="$ARENA_TOKEN" -t pass-m5-04:1.0 -
 docker run --rm pass-m5-04:1.0 && docker rmi pass-m5-04:1.0`,
       checkpoint: "Tu as réussi quand `curl http://localhost:9000` affiche le message de ton microserveur, quand l'image `arena-agent:1.0` apparaît dans `docker images` avec sa taille, et quand l'image `pass-m5-04` a affiché ton mot de passe.",
     },

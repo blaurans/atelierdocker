@@ -28,10 +28,10 @@ const DIR = 'content/quests';
  */
 const PAR_MODULE = {
   1: (id) => [
-    `docker run --rm alpine sh -c 'wget -qO- http://SERVER_IP:8000/api/secret/${id}/raw?t=PLAYER_TOKEN'`,
+    `docker run --rm alpine sh -c 'wget -qO- https://SERVER_IP/api/secret/${id}/raw?t=PLAYER_TOKEN'`,
   ],
   2: (id) => [
-    `docker run --rm alpine sh -c 'wget -qO- http://SERVER_IP:8000/api/secret/${id}/raw?t=PLAYER_TOKEN'`,
+    `docker run --rm alpine sh -c 'wget -qO- https://SERVER_IP/api/secret/${id}/raw?t=PLAYER_TOKEN'`,
   ],
   3: (id) => [
     `docker run --rm --network host alpine sh -c 'wget -qO- http://127.0.0.1:8000/api/secret/${id}/raw?t=PLAYER_TOKEN'`,
@@ -42,7 +42,7 @@ const PAR_MODULE = {
   5: (id) => [
     `docker build -t arena-secret:1 - <<'EOF'`,
     `FROM alpine`,
-    `CMD wget -qO- http://SERVER_IP:8000/api/secret/${id}/raw`,
+    `CMD wget -qO- https://SERVER_IP/api/secret/${id}/raw`,
     `EOF`,
     `docker run --rm arena-secret:1`,
   ],
@@ -76,7 +76,7 @@ const NOUVELLE_SECTION = (id, module) => {
     "de cette page. Il est **différent pour chaque équipe** : le communiquer à",
     'un autre binôme ne lui apportera rien.',
     '',
-    `Si la commande ne renvoie rien, vérifie que le portail répond : \`curl http://SERVER_IP:8000/healthz\`.`,
+    `Si la commande ne renvoie rien, vérifie que le portail répond : \`curl https://SERVER_IP/healthz\`.`,
   ].join('\n');
 };
 

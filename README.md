@@ -1,27 +1,60 @@
-# 🐳 Docker Ops Race — The Container Arena
+# 🐳 Atelier Docker
 
 Serious game d'apprentissage de Docker **pour des étudiants qui n'ont jamais
 tapé une commande Docker**. 7 modules, 26 quêtes, deux modes au choix dès
 l'inscription.
 
-Reprise du cahier des charges *Docker Ops Race : The Container Arena*
-(6 missions, portail dual-mode, barème 100 → 600 + bonus de podium) **étendue à
-7 modules et 26 quêtes**, et portée d'une base Python en mémoire à un portail
-Node + SQLite conteneurisé et persistant.
+Successeur de [Docker Ops Race](https://github.com/blaurans/seriousdocker), dont
+la V1 est gelée sur le tag `v1.0.0`. Cette V2 change ce qui compte :
+l'ordre des ateliers, le fil rouge qui les relie, et la façon dont la
+compréhension est vérifiée.
 
----
+## Mise en ligne
 
-## Démarrage en deux commandes
+Le portail est en production sur **https://atelierdocker.laurans.org**, servi
+par Caddy (TLS automatique) devant le conteneur.
+
+```bash
+cp .env.example .env
+$EDITOR .env          # ATELIER_ADMIN_KEY est obligatoire
+docker compose up -d --build
+```
+
+Puis, côté reverse proxy, un bloc de plus dans le Caddyfile :
+
+```
+atelierdocker.laurans.org {
+    reverse_proxy atelier-docker:8000
+}
+```
+
+Le `docker-compose.yml` **ne publie aucun port** : le portail rejoint le
+réseau Docker du reverse proxy (`headscale_default`) et n'est atteignable que
+par lui. Sans cette ligne dans le Caddyfile, le portail tourne mais reste
+injoignable ; sans `ATELIER_ADMIN_KEY`, le compose refuse de démarrer.
+
+### Portail en local, sans proxy
+
+Pour travailler sur le code, il faut repasser par une publication de port. La
+copier dans un `compose.override.yml` — jamais dans le fichier versionné :
+
+```yaml
+services:
+  atelier:
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      TRUST_PROXY: "0"
+```
 
 ```bash
 docker compose up -d --build
 ```
 
-Puis, sur chaque poste étudiant : **http://<IP_DU_SERVEUR>:8000**
-
-Pour déplacer le jeu ailleurs : copiez ce dossier (avec son `Dockerfile` et son
-`docker-compose.yml`) et lancez la même commande. Aucun host, aucun NFS, aucune
-base à installer. Les scores vivent dans un volume Docker nommé.
+Le portail répond alors sur `http://127.0.0.1:8000`, en `http` : `TRUST_PROXY`
+vaut `0` parce qu'aucun proxy ne renseigne `X-Forwarded-Proto`. En recouvrant
+ce `0` à `1` sans proxy, les commandes de récupération de mot de passe
+partiraient en `https` vers le port 443 de la machine locale, où rien n'écoute.
 
 ---
 
@@ -118,8 +151,8 @@ Exemple — mission 15, « Port Master » :
 ```bash
 docker run -d -p 8080:80 --name arena-web nginx:alpine
 docker exec arena-web wget -qO /usr/share/nginx/html/index.html \
-  "http://<IP>:8000/api/secret/m4-04-port-master/raw?t=dq_..."
-curl -s http://SERVER_IP:8080
+  "https://atelierdocker.laurans.org/api/secret/m4-04-port-master/raw?t=dq_..."
+curl -s http://localhost:8080
 ```
 
 Le mot de passe arrive **par le port publié** : la mission n'est validée que si
@@ -237,10 +270,11 @@ podium, bonus de rapidité, malus pour faux flag.
 
 ### Avant le TP
 
-1. `docker compose up -d --build` sur votre machine ou votre NAS.
-2. Notez l'IP que les étudiants doivent viser — `ip route get 1.1.1.1` affiche
-   l'IP de sortie, c'est celle à diffuser.
-3. Projetez `http://<IP>:8000` : c'est le portail, il se met à jour tout seul.
+1. `docker compose up -d --build` (voir § Mise en ligne pour le `.env`).
+2. En salle, le portail est déjà en ligne : projetez
+   **https://atelierdocker.laurans.org**, il se met à jour tout seul.
+3. Hors ligne, il faut publier un port et diffuser l'IP de sortie —
+   `ip route get 1.1.1.1` l'affiche.
 4. **Vérifiez que les postes ont Docker** : `docker run --rm hello-world`.
 5. **Testez la mission 1 sur un poste étudiant.** C'est le parcours que tout le
    monde suit en premier, et le seul qui ne marche pas chez soi.
@@ -272,15 +306,15 @@ l'application (bouton `?`), avec le jeton déjà rempli.
 
 ```bash
 # S'inscrire (compétitif)
-curl -X POST http://<IP>:8000/api/register \
+curl -X POST https://atelierdocker.laurans.org/api/register \
   -H "Content-Type: application/json" \
   -d '{"team":"CyberPhoenix","mode":"competitive"}'
 
 # Récupérer le mot de passe de la mission 1, depuis un conteneur
-docker run --rm alpine sh -c "wget -qO- http://<IP>:8000/api/secret/m1-01-image-ou-conteneur/raw?t=dq_..."
+docker run --rm alpine sh -c "wget -qO- https://atelierdocker.laurans.org/api/secret/m1-01-image-ou-conteneur/raw?t=dq_..."
 
 # Le valider
-curl -X POST http://<IP>:8000/api/submit \
+curl -X POST https://atelierdocker.laurans.org/api/submit \
   -H "Content-Type: application/json" \
   -H "X-Arena-Token: dq_..." \
   -d '{"flag":"FLAG{...}"}'
@@ -290,15 +324,21 @@ curl -X POST http://<IP>:8000/api/submit \
 
 ```bash
 # Remettre un joueur à zéro (oubli de token, binôme réinscrit)
-curl -X POST http://localhost:8000/api/admin/reset/CyberPhoenix
+curl -X POST https://atelierdocker.laurans.org/api/admin/reset/CyberPhoenix
 
 # Basculer un joueur du mode normal au compétitif
-curl -X POST http://localhost:8000/api/admin/mode/Alice_Bob \
+curl -X POST https://atelierdocker.laurans.org/api/admin/mode/Alice_Bob \
   -H "Content-Type: application/json" -d '{"mode":"competitive"}'
 
 # Statistiques : où la classe bloque
-curl http://localhost:8000/api/stats
+curl https://atelierdocker.laurans.org/api/stats
 ```
+
+Ces appels exigent tous l'en-tête `-H "X-Arena-Admin: $ATELIER_ADMIN_KEY"`.
+Sans clé, l'administration est ouverte à quiconque trouve l'URL :
+`/api/admin/delete/:team` supprime une inscription, `/api/admin/reset/:team`
+efface la progression. C'est pourquoi `ATELIER_ADMIN_KEY` est obligatoire dans
+le `.env`, et pourquoi le `compose.yaml` refuse de démarrer sans elle.
 
 `/api/stats` renvoie les **cinq missions les plus redoutées** (celles où le
 plus d'étudiants sont bloqués à l'étape précédente). C'est le point à
@@ -319,8 +359,8 @@ Alors un flag correct crée une soumission **en attente** : le score n'est pas
 attribué, le joueur n'avance pas. Vous apposez votre validation depuis :
 
 ```bash
-curl http://localhost:8000/api/admin/pending
-curl -X POST http://localhost:8000/api/admin/attest/CyberPhoenix/m4-04-port-master
+curl https://atelierdocker.laurans.org/api/admin/pending
+curl -X POST https://atelierdocker.laurans.org/api/admin/attest/CyberPhoenix/m4-04-port-master
 ```
 
 C'est la seule façon, sans agent sur le poste, de rendre la soumission de flag
@@ -374,7 +414,7 @@ npm test                  # 90 tests
 npm run dev               # rechargement à chaud
 npm run check-content     # valide que le contenu est chargeable
 npm run smoke -- http://localhost:8000        # joue les 26 missions, affiche le barème
-npm run check-fetchhints -- http://<IP>:8000 # REJOUE les 26 commandes pour de vrai
+npm run check-fetchhints # REJOUE les 26 commandes pour de vrai (demande Docker)
 ```
 
 > **`npm run check-fetchhints` est le seul test qui prouve que le jeu marche

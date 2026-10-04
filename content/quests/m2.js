@@ -64,7 +64,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox wget -qO- "http://SERVER_IP:8000/api/secret/m2-01-telecharger-une-image/raw?token=$ARENA_TOKEN"
+docker run --rm busybox wget -qO- "https://SERVER_IP/api/secret/m2-01-telecharger-une-image/raw?token=$ARENA_TOKEN"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -91,7 +91,7 @@ docker images
 \`\`\``,
       teaches: ['docker pull', 'docker images', 'docker image inspect', 'Docker Hub', 'tag latest'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox wget -qO- "http://SERVER_IP:8000/api/secret/m2-01-telecharger-une-image/raw?token=$ARENA_TOKEN"`,
+docker run --rm busybox wget -qO- "https://SERVER_IP/api/secret/m2-01-telecharger-une-image/raw?token=$ARENA_TOKEN"`,
       checkpoint: "Tu as réussi quand `docker images` affiche une ligne `alpine` avec le tag `latest`, et que tu sais expliquer à quoi sert la colonne IMAGE ID.",
     },
 
@@ -152,7 +152,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine wget -qO- "http://SERVER_IP:8000/api/secret/m2-02-conteneur-jetable/raw?token=$ARENA_TOKEN"
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m2-02-conteneur-jetable/raw?token=$ARENA_TOKEN"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -179,7 +179,7 @@ docker run --rm alpine sh
 \`\`\``,
       teaches: ['docker run', 'option --rm', 'docker rm', 'create plus start', 'commande principale'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm alpine wget -qO- "http://SERVER_IP:8000/api/secret/m2-02-conteneur-jetable/raw?token=$ARENA_TOKEN"`,
+docker run --rm alpine wget -qO- "https://SERVER_IP/api/secret/m2-02-conteneur-jetable/raw?token=$ARENA_TOKEN"`,
       checkpoint: "Tu as réussi quand un conteneur lancé avec `--rm` n'apparaît plus dans `docker ps -a`, alors que le même conteneur lancé sans `--rm` y reste avec le statut Exited.",
     },
 
@@ -239,7 +239,7 @@ Remplace \`dq_xxxxxxxxxxxxxxxx\` par ton jeton d'équipe — celui que le portai
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox sh -c "wget -qO- 'http://SERVER_IP:8000/api/secret/m2-03-anatomie-dune-image/raw?token=$ARENA_TOKEN'"
+docker run --rm busybox sh -c "wget -qO- 'https://SERVER_IP/api/secret/m2-03-anatomie-dune-image/raw?token=$ARENA_TOKEN'"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -270,7 +270,7 @@ docker run --rm alpine ls /
 \`\`\``,
       teaches: ['docker history', 'docker image inspect', 'couches', 'layers', 'cache de construction'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox sh -c "wget -qO- 'http://SERVER_IP:8000/api/secret/m2-03-anatomie-dune-image/raw?token=$ARENA_TOKEN'"`,
+docker run --rm busybox sh -c "wget -qO- 'https://SERVER_IP/api/secret/m2-03-anatomie-dune-image/raw?token=$ARENA_TOKEN'"`,
       checkpoint: "Tu as réussi quand `docker history alpine` te montre plusieurs couches dont certaines ne pèsent rien, et que tu sais expliquer que `RootFS.Layers` les liste dans l'autre ordre.",
     },
 
@@ -316,7 +316,7 @@ Remplace dq_xxxxxxxxxxxxxxxx par ton jeton d'équipe — celui que le portail a 
 
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox wget -qO- "http://SERVER_IP:8000/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"
+docker run --rm busybox wget -qO- "https://SERVER_IP/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"
 \`\`\`
 
 Le mot de passe s'affiche dans le terminal : envoie-le tel quel au portail.`,
@@ -342,14 +342,14 @@ docker run --rm hello-world
 docker ps -a
 # -> plus de conteneur hello-world : il a ete supprime a la sortie
 
-docker run --rm busybox wget -qO- "http://SERVER_IP:8000/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"
+docker run --rm busybox wget -qO- "https://SERVER_IP/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"
 # -> FLAG{...}   le mot de passe de TON equipe, affiche par le conteneur
 #    (SERVER_IP = l'adresse du portail, que l'eleve remplace)
 #    A envoyer tel quel au portail pour valider la mission.
 \`\`\``,
       teaches: ['docker version', 'docker run', 'hello-world', 'busybox', 'validation d\'un flag'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
-docker run --rm busybox wget -qO- "http://SERVER_IP:8000/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"`,
+docker run --rm busybox wget -qO- "https://SERVER_IP/api/secret/m2-04-initial-boot/raw?token=$ARENA_TOKEN"`,
       checkpoint: "Tu as réussi quand le conteneur `busybox` affiche un mot de passe dans ton terminal, et quand le portail a validé la mission avec ce mot de passe.",
     },
   ],
