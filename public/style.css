@@ -61,17 +61,26 @@
  * Utilisé pour le champ d'identifiant du formulaire d'administration : les
  * navigateurs refusent d'associer un formulaire à un gestionnaire de mots de
  * passe s'il n'a qu'un champ `password`.
+ *
+ * Les `!important` ne sont pas un caprice. Une classe utilitaire doit
+ * gagner contre **n'importe quelle** règle contextuelle, or le formulaire
+ * d'administration a sa propre règle d'aspect — `.admin-card input`
+ * (spécificité 0,1,1) l'emporte sur `.sr-only` (0,1,0). Sans `!important`, le
+ * champ s'étalait sur 1385 px avec son fond et sa bordure : invisible pour
+ * l'accessibilité, très visible pour l'œil. C'est exactement la raison du
+ * `!important` de `[hidden]` ci-dessus, appliquée à une classe et non à un
+ * attribut.
  */
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
 }
 
 html { scroll-behavior: smooth; }

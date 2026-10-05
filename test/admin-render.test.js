@@ -387,10 +387,28 @@ test('le formulaire a un champ d\'identifiant, pour les gestionnaires de mots de
   assert.equal(username.hasAttribute('hidden'), false,
     '`hidden` le retirerait de l\'accessibilité, ce qui est le but du champ');
 
-  // La classe doit exister dans la feuille de style, sinon le champ prend une
-  // place visible et l'écran d'administration s'ouvre sur une ligne de plus.
+  // La classe doit exister dans la feuille de style, **et gagner**.
+  //
+  // Un test qui vérifie seulement « la classe existe » est passé pendant que le
+  // champ s'étalait sur toute la largeur de l'écran : `.admin-card input`
+  // (spécificité 0,1,1) bat `.sr-only` (0,1,0), et le champ prenait 1385 px
+  // avec son fond et sa bordure. Invisible pour l'accessibilité, très visible
+  // pour l'œil.
+  //
+  // C'est ce qui distingue ce test d'une simple recherche de chaîne : une
+  // classe utilitaire déclarée sans `!important` est, par construction,
+  // perdante dès qu'une feuille de style de composant existe.
   const css = fs.readFileSync(path.resolve('public/style.css'), 'utf8');
   assert.match(css, /\.sr-only\s*\{/, 'la classe .sr-only doit exister');
-  assert.match(css, /\.sr-only\s*\{[^}]*position:\s*absolute/,
-    'et sortir du flux, sinon le champ prend de la place');
+
+  const regle = css.slice(css.indexOf('.sr-only {'));
+  const corps = regle.slice(0, regle.indexOf('}'));
+  for (const propriete of ['position: absolute', 'width: 1px', 'height: 1px']) {
+    assert.ok(corps.includes(propriete), `${propriete} doit être déclaré`);
+  }
+  for (const propriete of ['position', 'width', 'height', 'overflow', 'padding']) {
+    assert.match(corps, new RegExp(`${propriete}:[^;}]*!important`),
+      `${propriete} doit porter !important — sans lui, une règle de composant `
+      + 'écrase la classe utilitaire et le champ redevient visible');
+  }
 });
