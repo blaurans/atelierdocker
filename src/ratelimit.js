@@ -2,7 +2,7 @@
  * Limitation de débit en mémoire, par adresse IP.
  *
  * Le portail est ouvert sur le réseau de la classe : sans plafond, un seul
- * poste malveillant (ou un script de studied) peut sature la base et le
+ * poste malveillant (ou un script d'élève) peut sature la base et le
  * serveur. La limite est volontairement haute pour ne jamais gêner un élève
  * qui valide plusieurs missions d'affilée, mais assez basse pour rendre une
  * salve inutile.

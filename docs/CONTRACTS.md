@@ -233,6 +233,15 @@ Réponse 201 :
 }
 ```
 
+`message` est un texte de bienvenue, jamais un contrat : l'interface ne s'y
+fie pas et aucun test ne l'affirme. Il ne dit plus « l'Arena » — le produit
+s'appelle Atelier Docker depuis la V2, et un élève doit reconnaître l'écran
+qu'il a devant lui.
+
+**Statuts** : `201` à la création, `200` quand le pseudo existe déjà et que le
+secret correspond, `409` quand le pseudo est protégé par un secret et que le
+fourni ne correspond pas, `400` pour un pseudo ou un mode invalide.
+
 ### 2.2 `POST /api/submit`
 
 ```jsonc
@@ -515,7 +524,23 @@ galère.
 
 ---
 
-## 4. Conventions de code
+## 4. Recette dans un vrai navigateur
+
+`outils/navigateur/` pilote Chromium en CDP et joue le jeu **par les pixels**.
+C'est indispensable : cinq des neuf défauts corrigés avant la v1.0 étaient
+invisibles depuis les tests unitaires, qui exécutent `public/app.js` contre un
+DOM de substitution. Voir `outils/navigateur/LISEZ-MOI.md` pour Chromium, les
+scripts, et les pièges déjà payés (`confirm` qui bloque un onglet, navigation
+qui ne recharge pas, `captureBeyondViewport` qui ment).
+
+Ce ne sont pas des tests automatisés : ils ne sont pas dans la CI, ils ontology
+quand on regarde une page. Les garder dans le dépôt est délibéré — ce sont eux
+qui ont trouvé les défauts, et un script de recette jeté dans un répertoire
+temporaire est un script qu'on réécrit au lieu de le réutiliser.
+
+---
+
+## 5. Conventions de code
 
 ### Pile
 

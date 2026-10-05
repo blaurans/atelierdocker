@@ -2,7 +2,7 @@
  * Les trois endpoints de la maîtrise : indice, compréhension, réflexe.
  *
  * Isolés de `api.js` parce qu'ils introduisent une règle commune que la V1
- * n'avait pas : **ce qui est_showé au client a été demandé au serveur**.
+ * n'avait pas : **ce qui est montré au client a été demandé au serveur**.
  *
  * En V1, les trois indices d'une quête voyageaient dans le payload de
  * `/api/quests`. Le bouton « afficher un indice » ne faisait que déplier un

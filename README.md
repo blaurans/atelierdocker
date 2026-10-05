@@ -540,7 +540,7 @@ l'image, et le démarrage réel de ce qui vient d'être construit.
 
 Un second job, sur `main` seulement, rejoue **les 27 commandes de récupération
 de mot de passe** contre le portail de production. C'est le seul contrôle qui
-prouve que le jeu marche sur une vraie machine — et il avait.attrapé un bug que
+prouve que le jeu marche sur une vraie machine — et il a attrapé un bug que
 les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 
 ---
@@ -550,7 +550,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 208 tests
+npm test             # 209 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -625,11 +625,19 @@ src/
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
 public/                 le jeu et /admin (vanilla, sans dépendance)
-test/                   208 tests : format du contenu, maîtrise, migration,
+  index.html + app.js     l'écran des élèves, sur `/`
+  admin.html + admin.js   l'écran de l'enseignant, sur `/admin`
+  md.js                   mini-renderer Markdown du brief
+  style.css               la feuille unique des deux écrans
+outils/navigateur/      recette dans un vrai Chromium (CDP) — voir
+                        outils/navigateur/LISEZ-MOI.md
+test/                   209 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
                         API, routage, rendu des QCM et de /admin,
                         administration, contrat, invariants, qualité du contenu
-docs/CONTRACTS.md       contrat de données et d'API
+docs/
+  CONTRACTS.md         contrat de données et d'API
+  RELEASE-v1.0.md      notes de version
 ```
 
 Le contenu est séparé de la logique : ajouter ou retoucher des missions ne

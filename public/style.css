@@ -49,6 +49,31 @@
  */
 [hidden] { display: none !important; }
 
+/*
+ * Présent dans l'accessibilité, invisible à l'écran.
+ *
+ * `[hidden]` ne convient pas ici : `display: none` retire l'élément de
+ * l'ordre de tabulation **et** de l'accessibilité, et un gestionnaire de mots
+ * passe ne le voit plus. Il faut donc un élément de taille nulle, retiré du
+ * flux — d'où le `position: absolute`, qui le sort de l'écran sans le rendre
+ * invisible aux outils d'accessibilité et aux gestionnaires de mots de passe.
+ *
+ * Utilisé pour le champ d'identifiant du formulaire d'administration : les
+ * navigateurs refusent d'associer un formulaire à un gestionnaire de mots de
+ * passe s'il n'a qu'un champ `password`.
+ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 html { scroll-behavior: smooth; }
 
 body {

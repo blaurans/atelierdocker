@@ -358,3 +358,39 @@ test('la page ne stocke rien et ne lit aucune clé', async () => {
   assert.doesNotMatch(texte, /adminKey/i,
     'la clé d\'administration ne doit pas apparaître dans la page');
 });
+
+test('le formulaire a un champ d\'identifiant, pour les gestionnaires de mots de passe', () => {
+  // Chrome refuse d'associer un formulaire à un gestionnaire de mots de passe
+  // s'il ne contient qu'un champ `password` : il le signale dans la console
+  // (« Password forms should have (optionally hidden) username fields »). Sans
+  // ce champ, aucun gestionnaire ne propose de remplir le mot de passe — et
+  // l'enseignant le recopie depuis un `.env` affiché à côté de trente élèves.
+  //
+  // Le champ doit être `sr-only` et non `hidden` : `display: none` le retire
+  // de l'accessibilité, et c'est précisément le genre de champ que les
+  // gestionnaires cherchent. Il est `readonly` pour ne jamais être saisi, et
+  // `tabindex="-1"` pour ne pas créer une tabulation vide en tête de page.
+  const f = document.querySelector('#gateForm');
+  assert.ok(f, 'le formulaire doit exister');
+
+  const username = f.querySelector('input[name="username"]');
+  assert.ok(username, 'le champ d\'identifiant manque');
+  assert.equal(username.getAttribute('autocomplete'), 'username');
+  assert.equal(username.className, 'sr-only');
+  assert.equal(username.tabIndex, -1);
+  // L'attribut, pas la propriété : `linkedom` n'implémente pas `readOnly`, et
+  // un test qui lit une propriété que le DOM simulé ne sait pas rendre
+  // échouerait pour une raison étrangère au code testé.
+  assert.ok(username.hasAttribute('readonly'), 'il ne doit jamais être saisi');
+
+  // Il ne doit pas être `hidden` : ce serait l'annuler.
+  assert.equal(username.hasAttribute('hidden'), false,
+    '`hidden` le retirerait de l\'accessibilité, ce qui est le but du champ');
+
+  // La classe doit exister dans la feuille de style, sinon le champ prend une
+  // place visible et l'écran d'administration s'ouvre sur une ligne de plus.
+  const css = fs.readFileSync(path.resolve('public/style.css'), 'utf8');
+  assert.match(css, /\.sr-only\s*\{/, 'la classe .sr-only doit exister');
+  assert.match(css, /\.sr-only\s*\{[^}]*position:\s*absolute/,
+    'et sortir du flux, sinon le champ prend de la place');
+});

@@ -21,6 +21,16 @@
       fichier <code>.env</code> du serveur (<code>ATELIER_ADMIN_KEY</code>).
     </p>
 
+    <!-- Le champ d'identifiant est invisible mais présent. Sans lui, Chrome
+         refuse d'associer le formulaire à un gestionnaire de mots de passe
+         (`Password forms should have (optionally hidden) username fields`) :
+         aucun gestionnaire ne proposera donc de remplir ce mot de passe, et
+         l'enseignant le recopiera depuis un `.env` affiché à côté de trente
+         élèves. Il n'est ni lu ni envoyé — le serveur ne connaît qu'un seul
+         compte, c'est le point du design. -->
+    <input class="sr-only" type="text" name="username" autocomplete="username"
+           tabindex="-1" aria-hidden="true" readonly>
+
     <label for="mdp">Mot de passe</label>
     <input id="mdp" name="password" type="password" autocomplete="current-password"
            required autofocus spellcheck="false" autocapitalize="off">

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Parcours complet automatisé : joue les 26 missions contre une instance de
+ * Parcours complet automatisé : joue les 27 missions contre une instance de
  * test, et affiche le barème mission par mission.
  *
  *   node scripts/smoke.js [http://127.0.0.1:PORT]

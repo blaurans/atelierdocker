@@ -39,7 +39,7 @@ export function secretFor(player, quest) {
 }
 
 /**
- * Sel du déploiement. Sans lui, deux joueurs distintas déduiraient le même
+ * Sel du déploiement. Sans lui, deux joueurs distincts déduiraient le même
  * secret à partir de quêtes identiques. Regenerable sans casse : cela invalide
  * les secrets déjà distribués, ce qui est le comportement voulu après un
  * reset.

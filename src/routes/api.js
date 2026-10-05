@@ -18,7 +18,7 @@ export const api = express.Router();
 const TEAM_RE = /^[\p{L}\p{N} ._-]{2,32}$/u;
 
 // Plafonds de débit. Voir src/ratelimit.js : le portail est ouvert sur le
-// réseau de la classe, un script de studied ne doit pas pouvoir noyer la base.
+// réseau de la classe, un script d'élève ne doit pas pouvoir noyer la base.
 api.use(plafonds.api);
 
 export const modeLabel = (m) => MODE_LABELS[m] ?? m;
@@ -234,9 +234,12 @@ api.post('/register', plafonds.register, (req, res, next) => {
       team: player.team,
       mode: player.mode,
       token: player.token,
+      // Le message ne dit plus « l'Arena » : le produit s'appelle Atelier
+      // Docker depuis la V2, et un élève qui lit ça doit reconnaître l'écran
+      // qu'il a devant lui.
       message: player.mode === 'competitive'
-        ? "Bienvenue dans l'Arena ! Le chrono est armé."
-        : "Bienvenue ! Aucun chrono ici, prends ton temps.",
+        ? "Bienvenue à l'atelier ! Le temps de chaque mission t\'est affiché."
+        : "Bienvenue ! Aucun temps affiché ici, prends ton temps.",
     });
   } catch (e) { next(e); }
 });

@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: atelier-docker:2.0
+    image: atelier-docker:1.0
     container_name: atelier-docker
     restart: unless-stopped
     environment:

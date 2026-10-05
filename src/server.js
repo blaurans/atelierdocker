@@ -51,8 +51,8 @@ export function createApp() {
   // La page d'administration, à la racine : `/admin`, pas `/api/admin`.
   //
   // Elle est servie **sans** mot de passe, et c'est délibéré : la page *est* le
-  // formulaire. La mettre derrière le garde-fouingerait un enseignant qui met
-  // l'adresse en favori d'y voir du JSON `{"error":"…"}` au lieu du champ à
+  // formulaire. La mettre derrière le garde-fou afficherait, à un enseignant qui
+  // met l'adresse en favori, du JSON `{"error":"…"}` au lieu du champ à
   // remplir. Ce qui est protégé, c'est ce qu'elle affiche — la classe, les IP,
   // les actions — et tout cela part par l'API, qui est fermée.
   app.get('/admin', (_req, res, next) => {

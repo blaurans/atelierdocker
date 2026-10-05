@@ -209,10 +209,9 @@ export async function loadQuestpack({ dir = config.questsDir } = {}) {
       }
 
       // ── le mot de passe ne doit jamais être dans l'énoncé ──────────────
-      // Le porter de laspell de l'arène est un résultat du travail, pas une
-      // chaîne à recopier. S'il apparaît dans le brief, l'étudiant peut valider
-      // sans avoir lancé quoi que ce soit : c'est exactement ce que le jeu
-      // s'interdit.
+      // Le mot de passe est un résultat du travail, pas une chaîne à recopier.
+      // S'il apparaît dans le brief, l'étudiant peut valider sans avoir lancé
+      // quoi que ce soit : c'est exactement ce que le jeu s'interdit.
       if (md.includes(flag)) {
         errors.push(`${at} : le flag ne doit pas figurer dans « brief » — il se récupère via fetchHint`);
       }
