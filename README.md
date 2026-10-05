@@ -679,6 +679,18 @@ construit sur le cahier des charges continue de fonctionner.
 
 ---
 
+## Documents
+
+| Fichier | ce qu'il contient |
+|---|---|
+| `README.md` | ce document : mode d'emploi, conduite de séance, sécurité, développement |
+| `docs/CONTRACTS.md` | la source de vérité du schéma de quêtes et du contrat d'API |
+| `docs/RELEASE-v1.0.md` | les notes de version : ce que la v1.0 a décidé, et ses limites |
+| `docs/REPRISE.md` | **pour reprendre le projet sans aucun contexte** — l'état, les décisions, les pièges |
+| `outils/navigateur/LISEZ-MOI.md` | la recette dans un vrai Chromium |
+
+---
+
 ## Licence
 
 MIT. Le contenu pédagogique est librement adaptable à vos cours.
