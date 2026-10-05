@@ -25,8 +25,9 @@ const state = {
   pack: null,     // programme complet
   me: null,       // état du joueur
   current: null,  // id de la quête affichée
-  source: null,   // EventSource
-  retries: 0,     // échecs de connexion successifs (backoff)
+  // Ni `source` ni `retries` : le flux SSE du portail est parti, et le jeu n'a
+  // plus de connexion longue.
+
   // Le bilan d'une validation, en attente d'affichage. Il doit survivre au
   // repeint du panneau : le message est écrit **avant** le repeint, et lu par
   // `paintQuest` au passage.
@@ -459,7 +460,15 @@ function renderMap() {
  */
 function renderToken() {
   const chip = $('#tokenChip');
-  if (!chip || !state.token) return;
+  if (!chip) return;
+  // Sans jeton — après « Quitter » — la puce doit **disparaître**. La fonction
+  // sortait simplement, et l'ancien jeton restait affiché : un élève qui rend
+  // le poste copiait un jeton périmé en croyant copier le sien.
+  if (!state.token) {
+    chip.textContent = '';
+    chip.removeAttribute('title');
+    return;
+  }
   const court = `${state.token.slice(0, 9)}…`;
   chip.textContent = `🔑 ${court}`;
   chip.title = 'Copier mon jeton d\'API';
@@ -1177,10 +1186,52 @@ async function loadCommands() {
 $('#btnHelp').addEventListener('click', () => $('#helpDlg').showModal());
 $('#closeHelp').addEventListener('click', () => $('#helpDlg').close());
 
+/**
+ * « Quitter » — sortir de la session et rendre le poste.
+ *
+ * Le bouton est mort depuis le premier commit : il faisait
+ * `location.hash = '#/'` puis `route()`, et `route()` relit le jeton du
+ * `localStorage` — donc il rouvrait le jeu. Rien ne se passait, et le `confirm`
+ * promettait le contraire, ce qui est pire que pas de bouton : il fait
+ * confiance.
+ *
+ * Ce qu'il faut, ce n'est pas « revenir à l'accueil » — c'est **déconnecter**.
+ * Un élève qui rend le poste au suivant doit être sûr que le suivant ne
+ * récupère pas sa progression : tant que le jeton est dans le `localStorage`,
+ * le rechargement de la page le connecte, et le suivant se retrouve dans sa
+ * session sans l'avoir demandé.
+ *
+ * La progression, elle, ne bouge pas : elle est sur le serveur. L'élève
+ * revient en retapant son pseudo et son secret — c'est exactement ce pour quoi
+ * le champ secret existe.
+ */
 $('#btnQuit').addEventListener('click', () => {
-  if (!confirm('Quitter le lab ? Ton token reste enregistré sur ce poste : tu pourras reprendre où tu en étais.')) return;
-  location.hash = '#/';
-  route();
+  if (!confirm('Quitter ?\n\n'
+    + 'Ta progression reste enregistrée sur le serveur. Pour la retrouver, '
+    + 'retape ton pseudo et ton secret.\n\n'
+    + 'Le poste sera rendu à l\'invité suivant : il ne pourra pas voir '
+    + 'ta progression.')) return;
+
+  store.clear();
+  state.token = null;
+  state.team = null;
+  state.me = null;
+  state.pack = null;
+  state.current = null;
+  state.lastSuccess = null;
+  state.compr = {};
+  state.hints = {};
+  $('#teamName').textContent = '—';
+  $('#progressVal').textContent = '—';
+  $('#modeChip').textContent = '';
+  $('#modeChip').className = 'chip';
+  $('#sinceTag').textContent = '';
+  $('#historyBox').textContent = '';
+  $('#questMap').textContent = '';
+  $('#questPanel').textContent = '';
+  renderToken();
+  showGate();
+  toast('Session fermée. Retape ton pseudo et ton secret pour reprendre.', 'ok');
 });
 
 /* ═════════════════════════════════════════ l'inscription express a migré */

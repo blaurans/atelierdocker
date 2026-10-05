@@ -334,8 +334,15 @@ async function loadClient() {
 globalThis.__dqEl = el;
 return { route, bootPlayer, openQuest, showGate, showPlay, listeners: hashListeners, state };`);
 
+  // `confirm` est **capturé** par la factory : le remplacer sur `globalThis`
+  // après coup ne change rien au comportement du client. On passe donc un
+  // relais qui relit le global à chaque appel — sinon un test qui veut
+  // « l'élève refuse » doit deviner où poser le falso, et un faux posé trop
+  // tôt se fait écraser en silence par le `() => true` de cette fonction.
+  const confirmer = (...args) => globalThis.confirm(...args);
+
   return factory(renderMarkdown, globalThis.document, globalThis.localStorage,
-    globalThis.location, globalThis.confirm, globalThis.EventSource,
+    globalThis.location, confirmer, globalThis.EventSource,
     globalThis.fetch, setTimeout, clearTimeout, listeners);
 }
 
@@ -956,6 +963,82 @@ test('une mission sans indice ne montre pas de bouton', async () => {
   app.openQuest(sans.id);
   await new Promise((r) => setTimeout(r, 20));
   assert.match($('#questPanel').textContent, /Pas d\'indice/);
+});
+
+test('« Quitter » déconnecte vraiment', async () => {
+  // Le bouton est mort depuis le premier commit : il faisait
+  // `location.hash = '#/'` puis `route()`, et `route()` relit le jeton du
+  // localStorage — donc il rouvrait le jeu. Rien ne se passait, et le `confirm`
+  // promettait le contraire, ce qui est pire que pas de bouton : il fait
+  // confiance.
+  //
+  // Ce n'est pas seulement un bouton cassé. Un élève qui rend le poste au
+  // suivant laisse son jeton dans le navigateur : le rechargement de la page
+  // reconnecte, et l'invité suivant se retrouve dans sa session.
+  stubFetch();
+  registered = [pack.quests[0].id];
+  store.set('atelier-docker:v2', JSON.stringify({ token: 'dq_x', team: 'Alice', mode: 'normal' }));
+
+  const app = await loadClient();
+  // **Après** `loadClient` : elle réinstalle `confirm = () => true`. Une
+  // substitution posée avant serait écrasée en silence — et le test passerait
+  // pour une raison qui n'a rien à voir avec le bouton.
+  let demande = 0;
+  globalThis.confirm = () => { demande += 1; return true; };
+
+  await app.bootPlayer();
+  assert.equal($('#play').hidden, false, 'on est dans le jeu');
+
+  // Vrai clic : `dispatchEvent` se déclenche même sur un élément désactivé,
+  // et c'est exactement ce genre d'écart qui laisse un bouton mort.
+  $('#btnQuit').click();
+  await new Promise((r) => setTimeout(r, 20));
+
+  assert.equal(demande, 1, 'le bouton demande confirmation');
+  assert.equal($('#play').hidden, true, 'le parcours est masqué');
+  assert.equal($('#gate').hidden, false, 'l\'écran d\'inscription est là');
+  assert.equal(globalThis.localStorage.getItem('atelier-docker:v2'), null,
+    'le jeton est effacé du poste');
+  assert.equal($('#tokenChip').textContent, '',
+    'et la puce ne garde pas un jeton périmé à l\'écran');
+
+  // Et surtout : recharger ne doit pas reconnecter.
+  await app.route();
+  assert.equal($('#play').hidden, true,
+    'un rechargement ne doit pas rouvrir la session du précédent');
+});
+
+test('« Quitter » demande confirmation avant de déconnecter', async () => {
+  stubFetch();
+  registered = [pack.quests[0].id];
+  store.set('atelier-docker:v2', JSON.stringify({ token: 'dq_x', team: 'Alice', mode: 'normal' }));
+
+  const app = await loadClient();
+  // On refuse : rien ne doit bouger.
+  globalThis.confirm = () => false;
+
+  await app.bootPlayer();
+  $('#btnQuit').click();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal($('#play').hidden, false, 'on reste dans le jeu');
+  assert.ok(globalThis.localStorage.getItem('atelier-docker:v2'),
+    'et le jeton est conservé');
+});
+
+test('le message de « Quitter » promet ce qui est vrai', () => {
+  // L\'ancien message disait « Ton token reste enregistré sur ce poste : tu
+  // pourras reprendre où tu en étais » — pendant que le bouton faisait
+  // exactement le contraire. Une consigne fausse coûte plus cher qu\'une
+  // absente : on lui fait confiance.
+  const i = clientSrc.indexOf("btnQuit').addEventListener");
+  assert.ok(i > 0, 'le bouton doit exister');
+  const bloc = clientSrc.slice(i, i + 1400);
+  assert.match(bloc, /progression reste enregistrée sur le serveur/,
+    'dire où est la progression');
+  assert.match(bloc, /retape ton pseudo et ton secret/,
+    'et dire comment la retrouver');
+  assert.doesNotMatch(bloc, /token reste enregistré/,
+    'ne plus promettre un jeton conservé sur le poste');
 });
 
 test('sans ancre dans l\'URL, le jeu démarre quand même', async () => {
