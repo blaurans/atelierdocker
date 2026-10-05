@@ -430,6 +430,46 @@ test('le contrat décrit la fermeture de l\'administration', () => {
   }
 });
 
+test('check-fetchhints distingue le portail indisponible d\'une commande cassée', () => {
+  // Un redéploiement a fait passer vingt-et-une quêtes « cassées » dans la CI :
+  // Caddy renvoyait 502, la commande sortait en 0 — elle avait bien tourné —
+  // et le script ne conclut qu\'à l\'absence de mot de passe. Le rapport
+  // accusait le contenu d\'un incident qui venait du serveur.
+  //
+  // C\'est la troisième fois que ce script accuse le contenu d\'un incident
+  // qui vient d\'ailleurs, après le `https://https://` du premier commit et le
+  // « portail injoignable » de `nettoie-verif.js`. Un diagnostic doit dire
+  // **quelle** chose a cassé.
+  const script = read('scripts/check-fetchhints.js');
+
+  assert.match(script, /const indisponible = /,
+    'il faut savoir distinguer les deux');
+  assert.match(script, /502|503|504/,
+    'et savoir reconnaître un portail momentanément indisponible');
+  assert.match(script, /essai >= 3/,
+    'le repli doit être borné : un portail vraiment mort doit terminer');
+
+  // Le repli est à l\'intérieur de la boucle des 27 commandes, pas seulement à
+  // l\'inscription : le 502 est arrivé en cours de route, sur la commande d\'un
+  // `docker run`.
+  const boucle = script.slice(script.indexOf('for (const q of pack.quests)'));
+  assert.match(boucle, /indisponible\(r\)/, 'la boucle doit tester la indisponibilité');
+  assert.match(boucle, /nouvel essai/,
+    'et le dire au lieu d\'accumuler des échecs muets');
+
+  // Et quand ça échoue pour cette raison, le dire : un rapport qui ne
+  // distingue pas les deux causes fait perdre le temps de celui qui le lit.
+  assert.match(script, /le portail est resté indisponible/,
+    'l\'échec doit nommer la cause');
+
+  // La raison est lue des **deux** flux : `curl -sS` sans `-f` sort en 0 sur
+  // une 502 et n\'écrit rien sur stderr. Lire `err` seul donnait « portail
+  // indisponible () » — un diagnostic qui ne dit rien.
+  assert.match(script, /const raison = \(r\) =>/);
+  assert.match(script, /r\.err \?\? ''[\s\S]{0,20}r\.out \?\? ''/,
+    'la raison doit chercher dans stdout comme dans stderr');
+});
+
 test('check-fetchhints dit ce qui s\'est mal passé, et réessaie', () => {
   // Pendant un redéploiement, Caddy renvoie une 502 au corps vide. La V1 faisait
   // `await (await fetch(...)).json()` : le `JSON.parse` levait « Unexpected end

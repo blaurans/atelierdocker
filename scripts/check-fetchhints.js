@@ -131,6 +131,45 @@ function sh(cmd, timeoutMs = 90_000) {
 
 const secretOf = (r) => (r.out.match(/FLAG\{[A-Z0-9]+\}/) || [])[0] ?? null;
 
+/**
+ * Le portail était-il momentanément indisponible ?
+ *
+ * Une commande qui sort en `502 Bad Gateway` n'a pas échoué : elle n'a pas pu
+ * être servie. La CI a fait passer un redéploiement pour vingt-et-une quêtes
+ * cassées, parce que le script ne regardait que le statut du shell — qui était
+ * zéro, la commande ayant bel et bien tourné.
+ *
+ * C'est la troisième fois que ce script accuse le contenu d'un incident qui
+ * venait d'ailleurs, après le `https://https://` du tout premier commit et le
+ * « portail injoignable » de `nettoie-verif.js`. Le motif est clair : un
+ * diagnostic doit dire **quelle** chose a cassé, sinon il envoie chercher au
+ * mauvais endroit pendant qu'il n'y a rien à voir.
+ */
+const TRANSITOIRE = /\b(502|503|504)\b|Bad Gateway|Service Unavailable|Gateway Time-?out|Connection refused|Connection reset|temporary failure in name resolution/i;
+
+const indisponible = (r) => TRANSITOIRE.test(`${r.err ?? ''}\n${r.out ?? ''}`);
+
+/**
+ * Pourquoi le portail semblait indisponible, en une ligne.
+ *
+ * `curl -sS` sans `-f` sort en 0 sur une 502 et n'écrit rien sur stderr : le
+ * statut ne se lit que dans le corps de la réponse. Lire `err` seul donnait
+ * « portail indisponible () » — un diagnostic qui ne dit rien, donc un
+ * diagnostic qui ne fait pas gagner de temps.
+ */
+const raison = (r) => {
+  const texte = `${r.err ?? ''}\n${r.out ?? ''}`;
+  const m = texte.match(TRANSITOIRE);
+  if (!m) return '';
+  // La ligne entière autour du motif, nettoyée : « 502 Bad Gateway » vaut
+  // mieux qu'un code HTTP nu.
+  const ligne = texte.split('\n').map((l) => l.trim()).find((l) => TRANSITOIRE.test(l));
+  return (ligne ?? m[0]).replace(/\s+/g, ' ').slice(0, 70);
+};
+
+/** Une pause, courte : un redéploiement dure quelques secondes, pas une minute. */
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
 console.log(`Portail ${B} — vérification des ${pack.totalQuests} commandes\n`);
 
 // Ménage avant de commencer : les missions créent des conteneurs nommés et des
@@ -154,18 +193,40 @@ const echecs = [];
 
 for (const q of pack.quests) {
   const cmd = jouable(q.fetchHint, jeton);
+  const numero = String(q.number).padStart(2);
+  const titre = q.title.padEnd(30);
 
-  const debut = Date.now();
-  const r = await sh(cmd);
-  const ms = Date.now() - debut;
-  const secret = secretOf(r);
+  // Une commande est « réussie » quand elle rend un mot de passe. Si elle
+  // échoue alors que le portail était manifestement indisponible, on réessaie
+  // : le redéploiement est une chose normale à côté d'un portail déployé, et
+  // elle ne doit pas se déguiser en quête cassée.
+  let r = null;
+  let secret = null;
+  let ms = 0;
+  for (let essai = 1; ; essai += 1) {
+    const debut = Date.now();
+    r = await sh(cmd);
+    ms = Date.now() - debut;
+    secret = secretOf(r);
+    if (secret || !indisponible(r) || essai >= 3) break;
+    console.log(`  … n°${numero} ${titre} portail indisponible — ${raison(r) || 'raison inconnue'}`
+      + ` — nouvel essai dans 10 s`);
+    await pause(10_000);
+    // Les commandes créent des conteneurs nommés : un essai interrompu peut
+    // avoir laissé un nom pris, qui ferait échouer le suivant pour une raison
+    // qui n'a rien à voir avec la commande.
+    await sh(NETTOYAGE, 60_000);
+  }
 
   if (secret) {
     ok += 1;
-    console.log(`  ✅ n°${String(q.number).padStart(2)} ${q.title.padEnd(30)} ${String(ms).padStart(6)} ms  ${secret}`);
+    console.log(`  ✅ n°${numero} ${titre} ${String(ms).padStart(6)} ms  ${secret}`);
   } else {
     echecs.push(q);
-    console.log(`  ❌ n°${String(q.number).padStart(2)} ${q.title.padEnd(30)} ${String(ms).padStart(6)} ms`);
+    const cause = indisponible(r)
+      ? `le portail est resté indisponible (${raison(r)}) — ce n'est pas la commande`
+      : null;
+    console.log(`  ❌ n°${numero} ${titre} ${String(ms).padStart(6)} ms${cause ? `  (${cause})` : ''}`);
     console.log(`     cmd : ${cmd.replaceAll('\n', ' ⏎ ').slice(0, 150)}`);
     const err = (r.err || '').trim().split('\n').filter(Boolean).slice(-2).join(' | ');
     if (err) console.log(`     err : ${err.slice(0, 150)}`);
