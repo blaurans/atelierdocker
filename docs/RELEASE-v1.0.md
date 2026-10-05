@@ -1,6 +1,6 @@
 # Atelier Docker — v1.0
 
-Première version stable d'**Atelier Docker**. 27 quêtes, 7 ateliers, 209 tests,
+Première version stable d'**Atelier Docker**. 27 quêtes, 7 ateliers, 211 tests,
 déployée sur `https://atelierdocker.laurans.org`.
 
 Successeur de [Docker Ops Race](https://github.com/blaurans/seriousdocker) (`blaurans/seriousdocker`,
@@ -238,7 +238,7 @@ fusion :
 
 | job | ce qu'il prouve |
 |---|---|
-| `tests` | 209 tests, contenu des 27 quêtes validable, image construite, conteneur qui démarre et sert le programme |
+| `tests` | 211 tests, contenu des 27 quêtes validable, image construite, conteneur qui démarre et sert le programme |
 | `commandes` | les **27 commandes de récupération** rejouées contre le portail de production (`main` seulement) |
 
 Le second job est le seul contrôle qui prouve que le jeu marche sur une vraie
@@ -247,7 +247,7 @@ pouvaient pas voir. Il réessaie sur portail indisponible : un redéploiement a
 fait passer vingt-et-une quêtes « cassées » alors qu'elles fonctionnaient.
 
 ```bash
-npm test                      # 209 tests
+npm test                      # 211 tests
 npm run check-content         # le contenu est chargeable
 npm run smoke                 # joue les 27 quêtes, affiche la maîtrise
 npm run check-fetchhints      # REJOUE les 27 commandes — demande Docker
@@ -258,7 +258,7 @@ npm run nettoie-verif         # purge les joueurs de vérification
 
 ## Ce qui a été corrigé avant cette version
 
-Neuf défauts trouvés en jouant réellement le jeu, dont cinq impossibles à voir
+Onze défauts trouvés en jouant réellement le jeu, dont cinq impossibles à voir
 depuis les tests unitaires :
 
 | symptôme | cause |
@@ -272,10 +272,17 @@ depuis les tests unitaires :
 | « Administration fermée » sur la page d'accueil | le tableau de classe dépendait de `/api/overview`, fermée à la V2 — la page d'accueil était cassée **depuis le moment du verrouillage** |
 | « ressaisis le secret » sans champ à saisir | le champ secret n'existait qu'en Challenge |
 | « Quitter » ne faisait rien | `location.hash = '#/'` puis `route()` relisait le jeton et rouvrait le jeu — mort depuis le premier commit, et le `confirm` promettait le contraire |
+| les trois quêtes de l'atelier 7 échouaient en CI | la commande de récupération mise sur un `sleep 3` entre le lancement et la lecture des journaux : le runner est plus lent que le poste de développement |
+| l'échec ci-dessus s'affichait `Network … Removed` | le rapport n'affichait que les deux dernières lignes de stderr — le démontage. L'erreur était en haut |
 
-Le dernier est le plus instructif : le jeton restait dans le navigateur, donc
-**recharger la page reconnectait**. L'élève qui rendait le poste au suivant lui
-laissait sa session.
+Les deux derniers sont un seul défaut, vu deux fois : **un diagnostic qui montre
+le ménage au lieu de la panne**. Le `sleep` est parti — la commande attend
+maintenant la fin du processus, ce que `compose up <service>` fait déjà. Et le
+rapport montre le début de stderr.
+
+Le cas de « Quitter » est le plus instructif : le jeton restait dans le
+navigateur, donc **recharger la page reconnectait**. L'élève qui rendait le poste
+au suivant lui laissait sa session.
 
 ---
 

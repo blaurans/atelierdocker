@@ -116,7 +116,7 @@ Obligatoire : le serveur refuse de démarrer sans (`src/server.js`,
 
 ```bash
 npm install          # une seule dépendance : express (+ linkedom en dev)
-npm test             # 209 tests
+npm test             # 211 tests
 npm start            # http://localhost:8000
 ```
 
@@ -188,7 +188,7 @@ public/
   md.js                 mini-renderer Markdown
   style.css             une feuille pour les deux écrans
 outils/navigateur/      recette dans un vrai Chromium (CDP) — § 7
-test/                   209 tests
+test/                   211 tests
 docs/
   CONTRACTS.md          source de vérité : schéma de quête + contrat d'API
   RELEASE-v1.0.md       notes de version
@@ -384,6 +384,21 @@ Aucun `solution` dans le `brief`, aucun indice dedans, et pas de consigne
 demandant une réponse écrite sans champ pour la saisir. Tout ce qui est
 interdit est vérifié par `src/questpack.js`.
 
+### Deux règles de rédaction que le validateur n'impose pas
+
+**Aucune commande de récupération ne doit mettre sur un délai fixe.** Pas de
+`sleep 3` entre un lancement et une lecture : c'est une hypothèse sur la vitesse
+d'un réseau, alors qu'il suffit d'attendre la fin d'un processus. Les trois
+quêtes de l'atelier 7 le faisaient, et la CI les a vues échouer ensemble pendant
+que tout fonctionnait. Attends le processus : `docker compose up <service>`
+retourne quand le service se termine, en attaché.
+
+**Un diagnostic montre la cause, pas le ménage.** Docker Compose écrit son
+erreur au moment où elle se produit, puis démonte ce qu'il a construit — sur
+stderr aussi. Prendre les deux dernières lignes affiche le nom d'un réseau que
+le script vient de créer et de supprimer. C'est arrivé, et ça a envoyé chercher
+pendant qu'il n'y avait rien à voir.
+
 ### Pour ajouter une quête
 
 1. Éditer `content/quests/m<N>.js`.
@@ -399,7 +414,7 @@ de rendu le plus facile à manquer.
 ## 8. Les vérifications
 
 ```bash
-npm test                      # 209 tests — 10 s
+npm test                      # 211 tests — 10 s
 npm run check-content         # le contenu est chargeable
 npm run smoke                 # joue les 27 quêtes (demande un portail)
 npm run check-fetchhints      # REJOUE les 27 commandes — demande Docker
@@ -412,7 +427,7 @@ npm run nettoie-verif         # purge les joueurs de vérification
 
 | job | ce qu'il prouve |
 |---|---|
-| `tests` | 209 tests, contenu validable, image construite, conteneur qui démarre et sert |
+| `tests` | 211 tests, contenu validable, image construite, conteneur qui démarre et sert |
 | `commandes` | les **27 commandes de récupération** contre le portail de production — **`main` seulement**, en continu |
 
 Le job `commandes` inscrit un joueur en production. Il le supprime en sortant ;
@@ -420,6 +435,14 @@ Le job `commandes` inscrit un joueur en production. Il le supprime en sortant ;
 `ATELIER_ADMIN_KEY` — **le secret GitHub n'est pas configuré** sur ce dépôt, donc
 le ménage ne passe pas et chaque exécution laisse un `Verif_*` à nettoyer à la
 main. C'est une chose à corriger.
+
+**Ce job échoue pour des raisons qui ne sont pas dans le code.** Deux exemples
+réels : un redéploiement coupe le service dix secondes et Caddy renvoie `502`
+à toutes les commandes ; et le runner est plus lent que le poste de
+développement, si bien qu'une commande qui marche ici peut échouer là. Les deux
+ont été appris à la suite d'un échec, et tous deux sont dans les pièges de la
+section 13. Ne pas lire un échec de ce job comme un défaut des quêtes sans avoir
+éliminé ces deux causes.
 
 ### Pourquoi le job `commandes` existe
 
@@ -541,6 +564,8 @@ Liste courte des erreurs récurrentes. Chacune a coûté du temps.
 | substituer une globale dans un harnais de test | `loadClient` passait `confirm` **en paramètre** à une `new Function` : remplacer `globalThis.confirm` après ne changeait rien, et les tests échouaient en désignant une cause étrangère au code testé. |
 | un diagnostic qui n'accuse pas **la** chose | trois fois dans ce projet : `https://https://` au premier commit, « portail injoignable » pour un 401, et vingt-et-une quêtes « cassées » qui fonctionnaient pendant un redéploiement. Un diagnostic doit nommer la subsysteme en cause. |
 | lire la sortie d'un shell pour juger une commande | une commande qui reçoit un 502 **sort en 0** : elle a bien tourné. Regarder le statut ne prouve rien ; il faut lire le contenu. |
+| **`sleep N` entre un lancement et une lecture** | Works on my machine. Les trois quêtes de l'atelier 7 lisaient les journaux trois secondes après `compose up -d` ; le runner de CI est plus lent, et elles ont échoué ensemble pendant que tout fonctionnait. |
+| **prendre les dernières lignes de stderr** | Docker démonte ce qu'il a construit, sur stderr aussi : les deux dernières lignes sont le nom d'un réseau qu'on vient de supprimer. L'erreur est en **haut**. |
 | `.click()` contre `dispatchEvent` | `.click()` respecte `disabled` ; `dispatchEvent` non. Le premier respecte le comportement réel, le second permet de déclencher ce qui ne se déclencherait pas. |
 | `captureBeyondViewport` | laisse des couches peintes là où un élément était masqué. |
 | navigation vers la même URL | ne recharge pas — l'app garde son état. |

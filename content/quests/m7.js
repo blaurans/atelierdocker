@@ -14,6 +14,33 @@
 // Et l'atelier finit sur ce qui reste à faire, parce que la migration s'arrête
 // là : un volume ne fait pas une sauvegarde, et une pile décrite n'est pas
 // déployée ailleurs toute seule.
+//
+// ── Sur la commande de récupération de cet atelier
+//
+// Les trois quêtes partageaient la même récupération :
+//
+//   docker compose up -d && sleep 3 && docker compose logs journal && …
+//
+// Le `sleep 3` était une course. Le service lance un `wget` en HTTPS vers le
+// portail, et `logs` était lu trois secondes plus tard, quoi qu'il arrive. Sur
+// ma machine : 500 ms. Sur un runner de CI, ou sur une VM d'étudiant derrière
+// une connexion lente : plus de trois secondes, et les journaux sont vides —
+// la quête « échoue » alors que tout a fonctionné.
+//
+// La CI l'a attrapé : `n°25`, `n°26` et `n°27` en échec le même jour, pour la
+// même raison. Ce n'était pas un défaut du portail, et le rapport ne le disait
+// pas — il affichait les deux dernières lignes de stderr, c'est-à-dire le
+// démontage du réseau.
+//
+// La commande attend maintenant la fin du conteneur, ce que `compose up <service>`
+// fait déjà en attaché : la commande se termine quand le service se termine.
+// Un `sleep` est une hypothèse sur la vitesse d'un réseau ; ce n'en est pas
+// une sur la fin d'un processus. Les `;` avant `logs` et `down` garantissent
+// le ménage même en cas d'échec — sans quoi un réseau nommé reste pris et la
+// quête suivante échoue pour une raison étrangère.
+//
+// Le `logs` qui suit n'est pas inutile : il montre que la sortie de `up` et les
+// journaux sont la même chose.
 export default {
   meta: {
     slug: 'm7-decrire-la-pile',
@@ -159,7 +186,7 @@ journaux — c'est ce que fait la commande ci-dessous :
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7 && cd /tmp/atelier-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
+docker compose up journal; docker compose logs journal; docker compose down
 \`\`\`
 
 Le mot de passe s'affiche dans les journaux de la pile.`,
@@ -268,7 +295,7 @@ réseau déclaré. Compose l'a inventé, et il le recyclera tel quel.`,
       teaches: ['docker compose version', 'docker compose config', 'compose.yaml', 'clé services', 'depends_on'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7 && cd /tmp/atelier-m7 && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-01-un-seul-fichier/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
+docker compose up journal; docker compose logs journal; docker compose down`,
       checkpoint: "Tu as compris quand tu sais dire ce que `depends_on` ne garantit pas — et pourquoi `config` se lance avant `up`.",
     },
 
@@ -367,7 +394,7 @@ Un déploiement, c'est trois commandes et un fichier. \`config\` pour vérifier,
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7b && cd /tmp/atelier-m7b && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
+docker compose up journal; docker compose logs journal; docker compose down
 \`\`\``,
       hints: [
         "`docker compose ps` affiche une ligne par service, avec son état. C'est l'équivalent de `docker ps` pour toute la pile.",
@@ -451,7 +478,7 @@ docker volume ls
       teaches: ['docker compose up', 'docker compose ps', 'docker compose logs', 'docker compose exec', 'docker compose down'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7b && cd /tmp/atelier-m7b && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-02-piloter-la-pile/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
+docker compose up journal; docker compose logs journal; docker compose down`,
       checkpoint: "Tu as compris quand tu sais dire ce que `down` laisse en place, et quelle lettre rend cette commande irréversible.",
     },
 
@@ -561,7 +588,7 @@ qui survivent : c'est tout l'atelier.
 \`\`\`bash
 export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7c && cd /tmp/atelier-m7c && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-recuperer-une-pile-entiere/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down
+docker compose up journal; docker compose logs journal; docker compose down
 \`\`\``,
       hints: [
         "`docker compose ls` liste les **projets**, pas les conteneurs. Un conteneur qui tourne sans projet n'apparaît pas — c'est le premier indice du problème.",
@@ -642,7 +669,7 @@ docker compose down
       teaches: ['déploiement reproductible', 'compose down', 'compose up -d', 'ce qui reste : sauvegarde, version, HTTPS'],
       fetchHint: `export ARENA_TOKEN='dq_xxxxxxxxxxxxxxxx'
 mkdir -p /tmp/atelier-m7c && cd /tmp/atelier-m7c && printf '%s\\n' 'services:' '  journal:' '    image: alpine' "    command: wget -qO- https://SERVER_IP/api/secret/m7-03-recuperer-une-pile-entiere/raw?token=$ARENA_TOKEN" > compose.yaml
-docker compose up -d && sleep 3 && docker compose logs journal && docker compose down`,
+docker compose up journal; docker compose logs journal; docker compose down`,
       checkpoint: "Tu as compris quand tu sais répondre à la question de l'atelier 1 — « et si la machine meurt ? » — en trois commandes et un fichier.",
     },
   ],

@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { quests } from '../src/questpack.js';
 
 const read = (f) => fs.readFileSync(path.resolve(f), 'utf8');
 
@@ -500,4 +501,48 @@ test('le contrat et le README annoncent les mêmes chiffres', () => {
   const fichiers = fs.readdirSync(path.resolve('test')).filter((f) => f.endsWith('.test.js'));
   assert.ok(fichiers.length >= 8, `la suite doit être répartie sur au moins 7 fichiers, ${fichiers.length}`);
   assert.ok(Number(annonce[1]) >= fichiers.length, 'le nombre annoncé doit être plausible');
+});
+test('aucune commande de récupération ne parie sur la vitesse du réseau', () => {
+  // Les trois quêtes de l'atelier 7 faisaient :
+  //
+  //   docker compose up -d && sleep 3 && docker compose logs journal && …
+  //
+  // Le `sleep 3` était une course : le service lance un `wget` en HTTPS vers le
+  // portail, et les journaux étaient lus trois secondes plus tard, quoi qu'il
+  // arrive. Sur ma machine la requête prend 500 ms ; sur un runner de CI, ou
+  // sur une VM d'étudiant derrière une connexion lente, elle prend plus de trois
+  // secondes — et les journaux sont vides. La quête « échoue » alors que tout a
+  // fonctionné.
+  //
+  // La CI l'a attrapé : `n°25`, `n°26` et `n°27` en échec le même jour, pour la
+  // même raison. Le rapport ne le disait pas, parce qu'il n'affichait que les
+  // deux dernières lignes de stderr — le démontage du réseau.
+  //
+  // Un `sleep` est une hypothèse sur la vitesse d'un réseau. Ce n'est pas une
+  // hypothèse sur la fin d'un processus : c'est ce qu'il faut attendre.
+  for (const q of quests().quests) {
+    assert.doesNotMatch(q.fetchHint, /\bsleep\s+\d/,
+      `${q.id} : la commande de récupération mise sur un délai fixe. `
+      + 'Attendez la fin du processus, pas une durée.');
+  }
+});
+
+test('check-fetchhints montre le début de l\'erreur, pas le ménage', () => {
+  // Docker Compose écrit son erreur au moment où elle se produit, puis il
+  // démonte ce qu'il a construit — et ce démontage écrit aussi sur stderr. En
+  // prenant les **dernières** lignes, l'échec des trois quêtes de l'atelier 7
+  // s'affichait comme « Network atelier-m7_default Removed », c'est-à-dire le
+  // nom d'un réseau que le script venait de créer puis de supprimer.
+  //
+  // Un diagnostic qui montre le ménage au lieu de la panne envoie chercher là où
+  // il n'y a rien.
+  const script = read('scripts/check-fetchhints.js');
+  const corps = script.slice(script.indexOf('// Ménage après chaque mission') === -1
+    ? script.indexOf("console.log(`  ❌")
+    : 0);
+
+  assert.match(corps, /lignes\(r\.err\)\.slice\(0, 4\)/,
+    'il faut montrer les premières lignes de stderr');
+  assert.doesNotMatch(corps, /slice\(-2\)/,
+    'et surtout pas les deux dernières — c\'est le démontage');
 });

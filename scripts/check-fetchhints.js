@@ -228,8 +228,24 @@ for (const q of pack.quests) {
       : null;
     console.log(`  ❌ n°${numero} ${titre} ${String(ms).padStart(6)} ms${cause ? `  (${cause})` : ''}`);
     console.log(`     cmd : ${cmd.replaceAll('\n', ' ⏎ ').slice(0, 150)}`);
-    const err = (r.err || '').trim().split('\n').filter(Boolean).slice(-2).join(' | ');
-    if (err) console.log(`     err : ${err.slice(0, 150)}`);
+    // Les **premières** lignes de stderr, pas les dernières.
+    //
+    // Docker Compose écrit son erreur au moment où elle se produit — puis il
+    // démonte ce qu'il a construit, et ce démontage écrit sur stderr aussi. En
+    // prenant les deux dernières lignes, l'échec des trois quêtes de l'atelier
+    // 7 s'affichait comme « Network atelier-m7_default Removed » : le nom d'un
+    // réseau que le script vient de créer et de supprimer. Un diagnostic qui
+    // montre le ménage au lieu de la panne envoie chercher là où il n'y a rien.
+    //
+    // C'est la quatrième fois que ce script montre la sortie quand il faut
+    // montrer la cause.
+    const lignes = (s) => String(s ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+    const err = lignes(r.err).slice(0, 4).join(' ⏎ ');
+    if (!err && lignes(r.out).length) {
+      // Rien sur stderr : la sortie porte peut-être l'explication.
+      err = lignes(r.out).slice(0, 3).join(' ⏎ ');
+    }
+    if (err) console.log(`     err : ${err.slice(0, 240)}`);
   }
 
   // Ménage après chaque mission : les commandes créent des conteneurs nommés,

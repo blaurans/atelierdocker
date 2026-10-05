@@ -550,7 +550,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 209 tests
+npm test             # 211 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -631,7 +631,7 @@ public/                 le jeu et /admin (vanilla, sans dépendance)
   style.css               la feuille unique des deux écrans
 outils/navigateur/      recette dans un vrai Chromium (CDP) — voir
                         outils/navigateur/LISEZ-MOI.md
-test/                   209 tests : format du contenu, maîtrise, migration,
+test/                   211 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
                         API, routage, rendu des QCM et de /admin,
                         administration, contrat, invariants, qualité du contenu
