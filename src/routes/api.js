@@ -238,7 +238,7 @@ api.post('/register', plafonds.register, (req, res, next) => {
       // Docker depuis la V2, et un élève qui lit ça doit reconnaître l'écran
       // qu'il a devant lui.
       message: player.mode === 'competitive'
-        ? "Bienvenue à l'atelier ! Le temps de chaque mission t\'est affiché."
+        ? "Bienvenue à l'atelier ! Le temps de chaque mission t'est affiché."
         : "Bienvenue ! Aucun temps affiché ici, prends ton temps.",
     });
   } catch (e) { next(e); }
