@@ -70,6 +70,14 @@ await envoyer('Page.enable');
 await envoyer('Runtime.enable');
 await envoyer('Log.enable').catch(() => {});
 
+// Le cache désactivé n'est pas un détail : en production les assets sont
+// servis avec `maxAge: 5m`, donc Chromium sert l'ancien `style.css` et le
+// pilote mesure fidèlement une feuille de style déjà corrigée. C'est arrivé :
+// une règle CSS corrigée et déployée continuait de faire 1385 px de large
+// parce que le navigateur gardait la version précédente.
+await envoyer('Network.enable');
+await envoyer('Network.setCacheDisabled', { cacheDisabled: true });
+
 // Les erreurs console sont le signal le plus utile quand une page ne rend pas :
 // sans elles, un échec de module est invisible et `--dump-dom` ne dit rien.
 const litConsole = () => evenements

@@ -73,8 +73,12 @@ automatiquement — ne le remplacez pas par une sélection du premier onglet.
 précédent, et le script rapporte fidèlement un bug déjà corrigé. Ajoutez `?r=<aléatoire>`
 à chaque navigation (`verifie-accueil` le fait).
 
-**Désactivez le cache.** `Network.setCacheDisabled({cacheDisabled: true})`, sinon
-Chromium sert l'ancien `app.js`.
+**Désactivez le cache.** `Network.setCacheDisabled({cacheDisabled: true})`. En
+production les assets sont servis avec `maxAge: 5m`, donc sans cette ligne
+Chromium sert l'ancien fichier — et le script rapporte fidèlement une feuille de
+style ou un `app.js` déjà corrigé. Ça a fait mesurer 1385 px de large sur un
+champ de 1 px, après un correctif déployé et vérifié en local. Tous les scripts
+de ce dossier le font maintenant.
 
 **`Page.captureScreenshot({captureBeyondViewport: true})` ment.** Elle recompose
 toute la hauteur de page et laisse des couches peintes là où un élément
