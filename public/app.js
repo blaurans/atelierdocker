@@ -1,11 +1,12 @@
 /**
  * Atelier Docker — client.
  *
- * Deux vues dans une page :
- *   #portal  projection pour l'enseignant (podium + suivi), alimentée en SSE
- *   #game    le parcours de l'étudiant, après inscription
+ * Une seule vue : le parcours de l'élève. La projection pour l'enseignant est
+ * dans `/admin`, derrière un mot de passe — son tableau de classe ne peut pas
+ * être public, et il était déjà mort ici depuis la fermeture de
+ * `/api/overview`.
  *
- * Le token d'API est stocké en localStorage : il identifie le joueur d'un
+ * Le token d'API est stocké dans localStorage : il identifie le joueur d'un
  * poste à l'autre sans mot de passe (voir README § Sécurité).
  */
 
@@ -45,16 +46,12 @@ const state = {
 /** Ce que la base sait d'une quête : indices pris, indices payés. */
 const etatHints = (id) => state.hints[id] ?? { hints_used: 0, hints_charged: 0 };
 
-/**
- * Les libellés des deux modes.
- *
- * Dupliqués depuis `src/config.js` : le client est une page HTML servie telle
- * quelle, sans build, donc sans import possible. Le serveur reste la source de
- * vérité — `test/contract.test.js` compare les deux listes, et tombe si elles
- * divergent. C'est le prix à payer pour ne pas introduire un bundler dans un
- * projet qui n'en a pas besoin.
+/*
+ * Les libellés des deux modes ont disparu d'ici avec le portail : c'était la
+ * seule chose qui les lisait, pour la colonne « Mode » du tableau de suivi. La
+ * table de référence reste dans `src/config.js` et dans les deux cartes de choix
+ * de mode de la page — là où un élève la lit.
  */
-const MODE_LABELS = { competitive: 'Challenge', normal: 'Sans stress' };
 
 /* ══════════════════════════════════════════════════════════════ utilitaires */
 
@@ -132,29 +129,20 @@ function toast(message, kind = 'info', ms = 3600) {
 /* ══════════════════════════════════════════════════════════════════ routage */
 
 /**
- * Une seule source de vérité : le hash.
- *   (vide) ou '#portal' → projection enseignant
- *   '#/'                → le jeu (inscription ou reprise de session)
+ * Une seule vue : le jeu.
+ *
+ * La V2 avait deux vues sur cette page — le portail enseignant et le jeu —
+ * dispatchées sur le hash. Le portail est parti dans `/admin`, derrière le mot
+ * de passe : ce qu'il montrait y est déjà, en mieux, et sa lecture ne peut pas
+ * rester publique. Il était d'ailleurs à moitié mort — le tableau de classe
+ * dépendait d'`/api/overview`, fermée au même moment, et la page d'accueil
+ * affichait un toast d'erreur à quiconque la chargeait.
+ *
+ * Le hash reste accepté, sans rôle : `/#/` est l'adresse que l'enseignant
+ * distribue depuis le début, et la faire marcher coûte moins cher que de
+ * demander à vingt élèves de la changer.
  */
 async function route() {
-  const wantsGame = location.hash.startsWith('#/');
-  $('#portal').hidden = wantsGame;
-  $('#game').hidden = !wantsGame;
-
-  // Une seule connexion SSE à la fois, quelle que soit la vue. Sans cela,
-  // chaque aller-retour portail → jeu laissait derrière lui une connexion
-  // orpheline côté serveur : au bout de quelques bascules, le poste épuisait
-  // son quota et l'indicateur restait bloqué sur « connexion… ».
-  stopPortalStream();
-
-  if (!wantsGame) {
-    startPortalStream();
-    try {
-      renderPortal(await api('/api/overview', { auth: false }));
-    } catch (err) { toast(err.message, 'err'); }
-    return;
-  }
-
   const saved = store.read();
   if (saved?.token) {
     state.token = saved.token;
@@ -170,308 +158,6 @@ async function route() {
 }
 
 window.addEventListener('hashchange', route);
-
-/* ══════════════════════════════════════════════════════ vue : le portail */
-
-/**
- * Projection live du portail. Le serveur pousse `overview` à chaque
- * validation : plus de rafraîchissement toutes les 4 s comme dans le PDF.
- */
-function startPortalStream() {
-  stopPortalStream();
-
-  const es = new EventSource('/api/live');
-  state.source = es;
-  state.retries = 0;
-
-  es.addEventListener('overview', (e) => {
-    state.retries = 0;
-    setLive('on');
-    renderPortal(JSON.parse(e.data));
-  });
-
-  // `EventSource` se reconnecte tout seul toutes les ~3 s. En salle, quand la
-  // connexion coupe pour de bon (poste en veille, Wi-Fi), ces tentatives
-  // automatiques consomment le quota du serveur et le FIGENT davantage. On
-  // ferme donc la source et on la rouvre nous-mêmes, avec un recul exponentiel.
-  es.onerror = () => {
-    if (state.source !== es) return;          // déjà abandonnée
-    setLive(state.retries === 0 ? 'wait' : 'retry');
-    es.close();
-    state.retries += 1;
-    const pause = Math.min(30_000, 1000 * 2 ** (state.retries - 1));
-    setTimeout(() => {
-      if (!$('#portal').hidden && !state.source) startPortalStream();
-    }, pause);
-  };
-}
-
-function stopPortalStream() {
-  if (state.source) {
-    state.source.close();
-    state.source = null;
-  }
-  state.retries = 0;
-}
-
-/**
- * @param {'on'|'off'|'wait'|'retry'} état
- *   on    flux établi, le portail suit le classement en direct
- *   off   vue jeu : le flux est volontairement arrêté
- *   wait  première connexion en cours
- *   retry coupure, nouvelle tentative programmée
- */
-function setLive(etat) {
-  const dot = $('#liveDot');
-  const label = $('#liveLabel');
-  dot.classList.toggle('off', etat !== 'on');
-  dot.classList.toggle('pending', etat === 'wait' || etat === 'retry');
-  label.textContent = {
-    on: 'en direct',
-    off: 'hors ligne',
-    wait: 'connexion…',
-    retry: 'reconnexion…',
-  }[etat];
-  // L'animation CSS ne tourne que si la connexion est réellement vivante.
-  dot.dataset.state = etat;
-}
-
-function renderPortal(data) {
-  // Le portail lit `players`, pas `competitive` / `normal` : la V1 exposait une
-  // liste par mode, triée par score. La V2 renvoie **tous** les joueurs dans
-  // `players`, avec leurs trois ratios, sans classement. Lire les anciens champs
-  // donnait `undefined` partout, et `rows.length` levait une exception : le
-  // portail enseignant ne s'affichait pas du tout.
-  const { players = [], meta } = data;
-
-  $('#questCount').textContent = meta.total_quests;
-
-  renderCohort(meta.cohort, meta.total_quests);
-  renderPlayers(players, meta.total_quests);
-  renderCurl();
-}
-
-/**
- * Le résumé de la classe, à la place du podium.
- *
- * Le podium classait des scores. Il n'y a plus de score, donc plus rien à
- * classer — et surtout, un tableau de tête ne répond pas à la question que
- * l'enseignant se pose en séance : « est-ce que ça avance, et où est-ce que ça
- * coince ? ». Ce bandeau répond aux deux.
- */
-function renderCohort(coh, totalQuests) {
-  const box = $('#podium');
-  box.textContent = '';
-
-  if (!coh || coh.players === 0) {
-    box.appendChild(el('p', 'podium-empty',
-      'Aucun inscrit. Les élèves rejoignent la session ci-dessous.'));
-    return;
-  }
-
-  const stats = el('div', 'cohort');
-  const encart = (k, v, sub) => {
-    const c = el('div', 'cohort-card');
-    c.appendChild(el('div', 'cohort-v', v));
-    c.appendChild(el('div', 'cohort-k', k));
-    if (sub) c.appendChild(el('div', 'cohort-s', sub));
-    return c;
-  };
-
-  stats.appendChild(encart('Inscrits', String(coh.players),
-    `${Math.round(coh.started_ratio * 100)}% ont commencé`));
-  stats.appendChild(encart('Avancement moyen',
-    totalQuests ? (coh.started_ratio * totalQuests).toFixed(1) : '0',
-    `sur ${totalQuests} quêtes`));
-  stats.appendChild(encart('Autonomie moyenne',
-    pct(coh.average_autonomy),
-    `${coh.average_hints} indice(s) par quête validée`));
-
-  // « Où est-ce que ça coince ? » — l'atelier où les indices sont le plus
-  // consommés. C'est le seul signal qui mérite une mise en avant : il dit où
-  // l'enseignant doit aller, pas qui a perdu.
-  if (coh.hardest?.length) {
-    const pire = coh.hardest[0];
-    const alert = el('div', 'cohort-alert');
-    alert.appendChild(el('span', 'cohort-alert-k', '🔍 Atelier le plus consommé'));
-    alert.appendChild(el('span', 'cohort-alert-v', `Atelier ${pire.module}`));
-    alert.appendChild(el('span', 'cohort-alert-s', `${pire.hints} indice(s) demandé(s)`));
-    stats.appendChild(alert);
-  }
-  box.appendChild(stats);
-}
-
-/** Le tableau des joueurs, tous modes confondus, sans classement. */
-function renderPlayers(rows, totalQuests) {
-  const body = $('#playersBody');
-  body.textContent = '';
-  if (!rows.length) {
-    body.appendChild(emptyRow(8, "Aucun inscrit pour l'instant."));
-    return;
-  }
-
-  // Tri alphabétique, comme sur le serveur. Ce n'est pas un goût : c'est la seule
-  // façon de retrouver un élève en séance sans faire défiler un classement qui
-  // n'a plus de sens.
-  const tries = [...rows].sort((a, b) => a.team.localeCompare(b.team, 'fr'));
-
-  for (const row of tries) {
-    const tr = el('tr');
-    const team = el('td');
-    team.appendChild(el('span', 'team-cell', `> ${row.team}`));
-    if (row.finished) team.appendChild(el('span', 'badge badge-done', 'ACHEVÉ ✅'));
-    tr.appendChild(team);
-
-    // `el()` refuse un nœud en troisième argument — c'est le garde-fou qui
-    // empêche un « [object HTMLSpanElement] » d'atterrir dans une cellule. Un
-    // nœud s'ajoute avec `appendChild`.
-    const mode = el('td', 'c-mid');
-    mode.appendChild(el('span', `badge ${row.mode === 'competitive' ? 'badge-run' : 'badge-done'}`,
-      MODE_LABELS[row.mode] ?? row.mode));
-    tr.appendChild(mode);
-
-    const prog = el('td', 'c-mid');
-    prog.appendChild(questBadges(row.quest_numbers, totalQuests));
-    prog.appendChild(el('span', 'progress-text', row.progress ?? ''));
-    tr.appendChild(prog);
-
-    const auto = el('td', 'c-mid ratio-cell');
-    auto.appendChild(ratioCell(row.autonomy_ratio));
-    tr.appendChild(auto);
-
-    const compr = el('td', 'c-mid ratio-cell');
-    compr.appendChild(ratioCell(row.comprehension_ratio));
-    tr.appendChild(compr);
-
-    const niveau = el('td', 'c-mid');
-    niveau.appendChild(el('span', 'badge', row.level_name ?? row.level));
-    tr.appendChild(niveau);
-
-    tr.appendChild(el('td', 'c-right dim', heure(row.last_submit_iso, row.last_submission)));
-    const ip = el('td', 'c-right');
-    ip.appendChild(cellIp(row.last_ip));
-    tr.appendChild(ip);
-    body.appendChild(tr);
-  }
-}
-
-/**
- * Un ratio : une barre, un pourcentage.
- *
- * Une barre plutôt qu'un nombre nu, parce que « 0.43 » ne veut rien dire pour
- * un enseignant qui regarde vingt élèves d'un coup, alors que « 43 % » se
- * compare d'une ligne à l'autre. La barre rend l'œil plus rapide encore.
- */
-function ratioCell(v) {
-  const cell = el('span', 'ratio');
-  const n = Math.round((v ?? 0) * 100);
-  const bar = el('span', 'ratio-bar');
-  bar.style.width = `${n}%`;
-  bar.dataset.level = n >= 60 ? 'ok' : n >= 30 ? 'mid' : 'low';
-  cell.appendChild(bar);
-  cell.appendChild(el('span', 'ratio-n', `${n}%`));
-  return cell;
-}
-
-/**
- * Heure d'une action, affichée dans le fuseau du navigateur.
- *
- * Le serveur enregistre en UTC — c'est le bon choix pour la durée des
- * missions, qui se calcule en millisecondes. Mais afficher « 16:47 » sur une
- * horloge à 18:47 est déroutant pour l'enseignant : la salle ne parle pas UTC.
- *
- * `iso` est l'horodatage complet en UTC envoyé par le serveur. Sans lui, on
- * retombe sur la chaîne `last_submission` du cahier des charges, qui est
- * tronquée et donc déjà dans le mauvais fuseau — mieux vaut l'afficher que
- * de la masquer.
- */
-function heure(iso, repli = '-') {
-  if (iso) {
-    const d = new Date(iso);
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleTimeString('fr-FR', { hour12: false });
-    }
-  }
-  return repli && repli !== '-' ? repli : '—';
-}
-
-/**
- * Le poste du dernier appel, en IPv4 lisible.
- *
- * `::ffff:192.168.38.42` est la forme que renvoie le noyau pour une
- * connexion IPv4 ; on n'en garde que la partie utile. Les adresses loopback ne
- * servent à rien pour l'enseignant — tout le monde est sur 127.0.0.1 en local.
- */
-function cellIp(ip) {
-  if (!ip) return el('span', 'ip-cell dim', '—');
-  const v4 = ip.replace(/^::ffff:/, '');
-  const locale = /^(127\.|::1$|0\.0\.0\.0$)/.test(v4);
-  const span = el('span', `ip-cell${locale ? ' dim' : ''}`, v4);
-  span.title = 'Poste du dernier appel';
-  return span;
-}
-
-/** Pastilles 1..N : remplies si validées. Rendue compacte au-delà de 20. */
-/**
- * Les pastilles de progression : une par mission, allumée si elle est validée.
- *
- * `done` est une liste de **numéros** de mission, pas d'identifiants — voir
- * `quest_numbers` dans `src/portal.js`. La progression n'est pas linéaire (par
- * défaut, tout est accessible), donc on ne peut pas supposer que les missions
- * validées sont les premières.
- */
-function questBadges(done = [], total = 0) {
-  const box = el('span', 'qbadges');
-  const faits = new Set(done.map(Number));
-  const n = Math.max(total, faits.size ? Math.max(...faits) : 0);
-  for (let i = 1; i <= n; i++) {
-    box.appendChild(el('i', `qdot${faits.has(i) ? ' on' : ''}`, String(i)));
-  }
-  return box;
-}
-
-function emptyRow(span, text) {
-  const tr = el('tr');
-  const td = el('td', 'empty', text);
-  td.colSpan = span;
-  tr.appendChild(td);
-  return tr;
-}
-
-/**
- * Les commandes `curl` affichées sous le formulaire d'inscription.
- *
- * Deux corrections par rapport à la V1 :
- *
- * - `location.origin` et non `http://${location.host}` : le portail est servi
- *   en HTTPS derrière Caddy. Une commande en `http://` renvoyait une
- *   redirection, et un élève qui l'a suivie depuis un terminal sans `curl -L`
- *   obtenait une page vide sans comprendre pourquoi.
- * - plus de « score et chrono », ni de nom d'équipe à deux personnes : les
- *   élèves travaillent seuls en V2, et le score n'existe plus.
- */
-function renderCurl() {
-  const url = location.origin;
-  $('#curlExamples').textContent =
-`# 1. S'inscrire — mode Challenge : les indices coûtent de l'autonomie
-curl -X POST ${url}/api/register \\
-  -H "Content-Type: application/json" \\
-  -d '{"team": "MonPseudo", "mode": "competitive"}'
-
-# 2. S'inscrire — mode Sans stress : les indices sont gratuits
-curl -X POST ${url}/api/register \\
-  -H "Content-Type: application/json" \\
-  -d '{"team": "MonPseudo", "mode": "normal"}'
-
-# 3. Valider une mission — le token reçu à l'inscription fait authentification
-curl -X POST ${url}/api/submit \\
-  -H "Content-Type: application/json" \\
-  -H "X-Arena-Token: dq_..." \\
-  -d '{"flag": "FLAG{...}"}'
-
-# 4. Suivre la classe (progression, autonomie, compréhension — pas de score)
-curl ${url}/api/overview`;
-}
 
 /* ═══════════════════════════════════════════════════ vue : inscription */
 
@@ -567,29 +253,12 @@ async function bootPlayer() {
   await loadCommands();
 }
 
-/**
- * Le message court, pour les réponses qui ne valident rien : quête déjà
- * validée, attente de l'enseignant.
- *
- * La validation elle-même n'a pas de message ici : son bilan est une carte,
- * posée par `paintQuest` à l'endroit exact où l'élève vient d'agir.
- *
- * Il y avait deux implémentations du bilan — celle-ci et `buildSuccess` — et
- * l'appelant écrivait dans le champ du formulaire. Ce champ n'existe pas pour
- * une quête validée : il est remplacé par un encart « Mission déjà validée ».
- * Le bilan partait donc dans le vide, et l'élève validait une mission sans rien
- * voir se passer. Une seule fonction construit la carte, un seul endroit
- * l'affiche.
- *
- * Pas de score : il n'y en a plus. Ce que l'élève veut savoir, c'est si cette
- * quête compte pour ton autonomie — c'est la seule chose qui ne dépende que de
- * lui.
+/*
+ * `renderValidationReport` est parti avec le portail. Il ne servait plus qu'aux
+ * réponses qui ne valident rien — « quête déjà validée », « en attente » — et ces
+ * deux messages sont écrits en place, dans le handler de soumission, qui sait de
+ * quoi il parle.
  */
-function renderValidationReport(out, res) {
-  if (!out) return;
-  out.className = 'submit-msg submit-warn';
-  out.textContent = res.message ?? '';
-}
 
 function renderHeader() {
   const { me } = state;
@@ -1514,37 +1183,19 @@ $('#btnQuit').addEventListener('click', () => {
   route();
 });
 
-/* ════════════════════════════════════════════ formulaire d'inscription express */
+/* ═════════════════════════════════════════ l'inscription express a migré */
 
-$('#regForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const team = $('#inTeam').value.trim();
-  // Le secret est facultatif, mais l'« inscription rapide » n'était pas le
-  // chemin le mieux protégé. Un élève pressé s'inscrit sans secret, et se
-  // retrouve avec un pseudo public.
-  const secret = $('#inSecret').value.trim();
-  const mode = $('#inMode').value;
-  const msg = $('#regMsg');
-  msg.textContent = '';
-  msg.className = 'reg-msg';
-  if (!team) {
-    msg.textContent = '❌ Veuillez entrer un pseudo.';
-    return;
-  }
-  try {
-    const res = await api('/api/register', {
-      method: 'POST', auth: false,
-      body: secret ? { team, mode, secret } : { team, mode },
-    });
-    msg.textContent = res.status === 'created'
-      ? `✅ ${res.message} Ton token : ${res.token}`
-      : `ℹ️ ${res.message}`;
-    $('#inTeam').value = '';
-    $('#inSecret').value = '';
-  } catch (err) {
-    msg.textContent = `❌ ${err.message}`;
-  }
-});
+/*
+ * Le formulaire d'inscription rapide n'est plus ici : il est dans `/admin`,
+ * avec le reste des gestes d'enseignant.
+ *
+ * Il ne dépendait d'aucune donnée protégée — `POST /api/register` est public —
+ * mais c'était un raccourci pour inscrire une classe entière en tapant les
+ * pseudos, et un raccourci d'enseignant n'a rien à faire sur une page publique.
+ * Le champ secret est venu avec lui : sur cette page d'accueil, « inscription
+ * rapide » était le chemin le moins protégé — aucun secret, donc un pseudo
+ * public pour tous ceux qui prenaient le raccourci.
+ */
 
 /* ══════════════════════════════════════════════════════════════════ démarrage */
 

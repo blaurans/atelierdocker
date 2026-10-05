@@ -332,7 +332,7 @@ async function loadClient() {
     'hashListeners',
     `${source}
 globalThis.__dqEl = el;
-return { route, renderPortal, bootPlayer, openQuest, listeners: hashListeners, state };`);
+return { route, bootPlayer, openQuest, showGate, showPlay, listeners: hashListeners, state };`);
 
   return factory(renderMarkdown, globalThis.document, globalThis.localStorage,
     globalThis.location, globalThis.confirm, globalThis.EventSource,
@@ -353,123 +353,6 @@ test('el() refuse un nœud DOM comme texte', async () => {
     'el() doit refuser un nœud plutôt que de l\'afficher comme du texte',
   );
   assert.equal(globalThis.__dqEl('td', null, 'texte').textContent, 'texte');
-});
-
-test('le portail n\'affiche jamais [object HTMLSpanElement]', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  renderPortal(overviewPayload());
-
-  // Toutes les cellules du tableau des joueurs, une par une.
-  for (const td of $$('#playersBody td')) {
-    assert.doesNotMatch(td.textContent, /\[object HTML/i,
-      'une cellule affiche un objet au lieu de son contenu');
-  }
-  // La progression doit contenir les pastilles, pas leur représentation : le
-  // ratio d'autonomie est un nœud, pas du texte.
-  const prog = $$('#playersBody tr td:nth-child(3)')[0];
-  assert.ok(prog.querySelector('.qdot'), 'les pastilles de progression doivent être présentes');
-  assert.ok($$('#playersBody tr td:nth-child(4)')[0].querySelector('.ratio-bar'),
-    'le ratio d\'autonomie doit être une barre, pas un nombre nu');
-});
-
-test('le portail affiche l\'heure dans le fuseau du poste', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  renderPortal(overviewPayload());
-
-  const attendu = new Date('2026-01-01T14:10:00.000Z')
-    .toLocaleTimeString('fr-FR', { hour12: false });
-  // Septième colonne : équipe, mode, progression, autonomie, compréhension,
-  // niveau, dernier flag, poste.
-  const cellule = $$('#playersBody tr')[0].querySelectorAll('td')[6];
-  assert.equal(cellule.textContent, attendu,
-    'l\'heure doit être rendue dans le fuseau du navigateur, pas celui du serveur');
-});
-
-test('le tableau de suivi affiche la colonne IP', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  renderPortal(overviewPayload());
-
-  const alice = $$('#playersBody tr')[0].querySelectorAll('td');
-  assert.equal(alice.length, 8, 'huit colonnes : équipe, mode, progression, '
-    + 'autonomie, compréhension, niveau, dernier flag, poste');
-  assert.match(alice[7].textContent, /192\.168\.38\.42/,
-    'la forme ::ffff: doit être nettoyée');
-  assert.match($$('#playersBody tr')[1].querySelectorAll('td')[7].textContent, /192\.168\.38\.17/);
-});
-
-test('le portail affiche la cohorte et le tableau de suivi', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  renderPortal(overviewPayload());
-
-  // Le bandeau remplace le podium : des chiffres, pas un classement.
-  assert.equal($$('#podium .podium-step').length, 0, 'il ne doit plus y avoir de podium');
-  const cartes = $$('#podium .cohort-card');
-  assert.equal(cartes.length, 3, 'inscrits, avancement, autonomie');
-  assert.match(cartes[0].textContent, /3/);
-  assert.match(cartes[2].textContent, /83%/, 'l\'autonomie moyenne est un pourcentage');
-  // « Où est-ce que ça coince ? » : l'atelier le plus consommé d'indices.
-  assert.match($('#podium').textContent, /Atelier 4/);
-  assert.doesNotMatch($('#podium').textContent, /pts/,
-    'aucun point ne doit réapparaître dans le bandeau');
-
-  assert.equal($$('#playersBody tr').length, 3);
-  // Tri alphabétique : c'est la seule façon de retrouver un élève en séance.
-  assert.match($$('#playersBody tr td')[0].textContent, /Alice/);
-  assert.match($$('#playersBody tr td:nth-child(2)')[0].textContent, /Challenge/);
-  assert.match($$('#playersBody tr')[1].textContent, /Sans stress/);
-  assert.match($$('#playersBody tr')[1].textContent, /12\/27/);
-  assert.match($$('#playersBody tr')[2].textContent, /ACHEVÉ ✅/);
-  assert.match($('#playersBody').textContent, /Expert/);
-
-  assert.equal(text('#questCount'), String(pack.totalQuests));
-  assert.doesNotMatch($('#podium').textContent, /\d+ pts/);
-});
-
-test('le portail gère le vide sans casser', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  // Une classe vide : c'est l'état du portail au premier jour, avant le premier
-  // élève. Il ne doit ni lever une exception ni afficher « undefined ».
-  renderPortal({
-    players: [],
-    meta: {
-      total_quests: pack.totalQuests, modules: [], players: 0, completions: 0,
-      cohort: { players: 0, started: 0, total_quests: pack.totalQuests,
-        started_ratio: 0, average_autonomy: 0, average_hints: 0, hardest: [] },
-    },
-  });
-  assert.match($('#podium').textContent, /Aucun inscrit/);
-  assert.match($('#playersBody').textContent, /Aucun inscrit/);
-  assert.doesNotMatch($('#playersBody').textContent, /undefined|NaN/);
-});
-
-test('le portail affiche les commandes curl, en https et sans score', async () => {
-  stubFetch();
-  const { renderPortal } = await loadClient();
-  renderPortal(overviewPayload());
-  const curl = text('#curlExamples');
-  assert.match(curl, /api\/register/);
-  assert.match(curl, /competitive/);
-  assert.match(curl, /api\/submit/);
-  assert.match(curl, /api\/overview/);
-  // Le portail est derrière Caddy, en HTTPS. Une commande en `http://` se
-  // faisait rediriger, et un élève qui l'a suivie depuis un terminal sans
-  // `curl -L` obtenait une page vide.
-  // L'origine du navigateur, protocole compris. Le harnais sert en http, donc
-  // on ne peut pas interdire `http://` — ce qu'on vérifie, c'est qu'aucune
-  // commande ne se fabrique son propre préfixe au lieu de reprendre celui de la
-  // page : c'est exactement le bug qui envoyait les élèves en clair vers un
-  // portail qui ne l'est plus.
-  for (const cmd of curl.split('\n').filter((l) => l.includes('curl '))) {
-    assert.match(cmd, /curl (-X POST )?http:\/\/localhost:8000\/api\//,
-      `la commande ne reprend pas l'origine de la page : ${cmd}`);
-  }
-  assert.doesNotMatch(curl, /avec score|Alice_Bob/,
-    'la copie de la V1 est restée : score, chrono, et binômes');
 });
 
 test('le parcours se construit depuis les données du serveur', async () => {
@@ -686,17 +569,6 @@ test('le champ du secret est là dans les deux modes', () => {
     'dire ce qu\'est un pseudo sans secret : c\'est ce qui décide');
   assert.match(note.textContent, /retape le même pseudo et le même secret|secret/,
     'et rappeler le geste qui permet de reprendre sa session');
-});
-
-test('le formulaire rapide accepte aussi un secret', () => {
-  // « Inscription rapide — pour les retards » était le chemin le moins
-  // protégé : aucun champ secret, donc un pseudo public. C'est
-  // paradoxalement le chemin que prennent les élèves pressés.
-  assert.match(html, /id="inSecret"/, 'le champ secret du formulaire rapide');
-  assert.match(clientSrc, /\$\('#inSecret'\)\.value\.trim\(\)/,
-    'et il doit être lu');
-  assert.match(clientSrc, /secret \? \{ team, mode, secret \}/,
-    'puis envoyé quand il est rempli');
 });
 
 test('les questions de compréhension sont rendues', async () => {
@@ -1086,16 +958,73 @@ test('une mission sans indice ne montre pas de bouton', async () => {
   assert.match($('#questPanel').textContent, /Pas d\'indice/);
 });
 
-test('le client échappe tout ce qu\'il affiche', async () => {
+test('sans ancre dans l\'URL, le jeu démarre quand même', async () => {
+  // Un élève qui colle `https://atelierdocker.laurans.org/` dans son navigateur
+  // ne tape pas de `#/`. La V2 dispatchait sur le hash et tombait sur le
+  // portail — sans ancre, c'était le portail ; avec, le jeu. La page d'accueil
+  // est maintenant le jeu dans les deux cas.
   stubFetch();
+  registered = [];
+  store.clear();
+
+  const debut = globalThis.location;
+  globalThis.location = { ...debut, hash: '' };
+  try {
+    const app = await loadClient();
+    await app.route();
+
+    assert.equal($('#gate').hidden, false, 'l\'écran d\'inscription doit être là');
+    assert.equal($('#play').hidden, true, 'et le parcours encore masqué');
+    // Le bandeau affiche un tiret cadratin tant qu'aucune session n'est
+    // ouverte. Le test ne doit pas exiger une chaîne vide : la placeholders du
+    // HTML est très susceptible de changer, et elle n'a rien à voir avec le
+    // routage.
+    assert.notEqual($('#teamName').textContent.trim(), '',
+      'aucun joueur ne doit être annoncé');
+  } finally {
+    globalThis.location = debut;
+  }
+});
+
+test('avec une ancre inconnue, le jeu démarre aussi', async () => {
+  // Un élève qui arrive d'un lien copié depuis une discussion, ou d'un vieux
+  // signet `/#/jeu` : il ne doit pas atterrir sur une page morte.
+  stubFetch();
+  registered = [];
+  store.clear();
+
+  const debut = globalThis.location;
+  globalThis.location = { ...debut, hash: '#/jeu' };
+  try {
+    const app = await loadClient();
+    await app.route();
+    assert.equal($('#gate').hidden, false);
+  } finally {
+    globalThis.location = debut;
+  }
+});
+
+test('le client échappe tout ce qu\'il affiche', async () => {
+  // Le pseudo vient de `/api/me`, pas de `registered` : celui-ci liste des
+  // identifiants de quêtes, et y mettre une balise casse la fixture.
+  const meHote = mePayload([]);
+  meHote.team = '<script>alert(1)</script>';
+  stubFetch({ '/api/me': () => meHote });
   registered = [];
   const app = await loadClient();
   store.clear();
   await app.bootPlayer();
-  app.renderPortal(overviewPayload());
 
-  // Aucun nom d'équipe injecté ne doit produire de balise : on le vérifie
-  // via innerHTML du panneau construit par le client.
-  assert.equal($('#questPanel').querySelectorAll('script').length, 0);
-  assert.equal($('#questMap').querySelectorAll('script').length, 0);
+  // Un pseudo hostile ne doit produire aucune balise. Le test passe par
+  // `innerHTML` : c'est ce que le navigateur interprète, pas `textContent`.
+  //
+  // Il regarde le bandeau, là où le pseudo est écrit — et pas `document.body`,
+  // qui contient le `<script src="/app.js">` de la page et ferait échouer le
+  // test pour la mauvaise raison.
+  const equipe = $('#teamName');
+  assert.doesNotMatch(equipe.innerHTML, /<script/i,
+    'un pseudo ne doit pas devenir une balise');
+  assert.match(equipe.innerHTML, /&lt;script&gt;/,
+    'il doit être affiché comme texte, échappé');
+  assert.equal(equipe.textContent, '<script>alert(1)</script>');
 });

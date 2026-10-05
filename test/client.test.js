@@ -19,9 +19,62 @@ const pack = quests();
 
 test('tout #id utilisé par app.js existe dans index.html', () => {
   const ids = [...new Set([...clientJs.matchAll(/\$\('#([\w-]+)'\)/g)].map((m) => m[1]))];
-  assert.ok(ids.length > 25, `seulement ${ids.length} sélecteurs : le fichier a été tronqué ?`);
   const manquants = ids.filter((id) => !new RegExp(`id="${id}"`).test(html));
   assert.deepEqual(manquants, [], `ids absents de index.html : ${manquants.join(', ')}`);
+
+  // Le seuil qu'il y avait ici — « plus de 25 sélecteurs, sinon le fichier a été
+  // tronqué » — était calibré sur une version d'`app.js` qui contenait encore le
+  // portail. Il est devenu faux du jour où le portail est parti, et il
+  //Quiconque le relirait ne le saurait pas : c'est un nombre qui ne veut rien dire.
+  //
+  // Ce qui vérifie vraiment une troncature, c'est que les fonctions de rendu
+  // existent encore. C'est structurel, et ça ne se périme pas au prochain
+  // commit.
+  for (const fn of [
+    'showGate', 'showPlay', 'bootPlayer', 'openQuest', 'paintQuest',
+    'renderHeader', 'renderMap', 'renderHistory', 'renderCurrent',
+    'buildComprehension', 'buildSubmitBox', 'buildSuccess', 'buildSolution',
+    'refresh',
+  ]) {
+    assert.match(clientJs, new RegExp(`function ${fn}\\(`),
+      `app.js ne définit plus ${fn}() : le fichier a été tronqué ?`);
+  }
+  assert.ok(ids.length > 15, `seulement ${ids.length} sélecteurs — encore plausible ?`);
+});
+
+test('la page d\'accueil EST le jeu', () => {
+  // `/` et `/#/` mènent tous deux au jeu. Le portail enseignant est parti dans
+  // `/admin`, derrière un mot de passe.
+  //
+  // La raison n'est pas seulement la sécurité : le tableau de classe du portail
+  // dépendait de `/api/overview`, fermée le jour où l'administration a été
+  // verrouillée. La page d'accueil affichait donc un toast d'erreur à quiconque
+  // la chargeait — c'est-à-dire à chaque élève, à chaque séance.
+  assert.doesNotMatch(html, /id="portal"/,
+    'le portail ne doit plus exister dans la page du jeu');
+
+  // Et le jeu ne doit pas démarrer masqué : il n'y a plus rien derrière lui.
+  assert.match(html, /<div id="game" class="screen">/,
+    '`#game` ne doit pas porter `hidden` : `[hidden]` l\'emporterait sur tout `display`');
+
+  // Le routeur ne doit plus consulter le hash pour choisir une vue. Le hash
+  // reste accepté — `/#/` est l'adresse que l'enseignant distribue — mais il
+  // ne décide de rien.
+  assert.doesNotMatch(clientJs, /location\.hash\.startsWith/,
+    'plus de dispatch sur le hash : il n\'y a qu\'une vue');
+  // Le mot `/api/overview` apparaît encore — dans un commentaire, pour
+  // expliquer pourquoi la vue a été déplacée. Chercher la chaîne entière
+  // confondrait ce commentaire avec un appel, et c'est exactement l'erreur que
+  // ce fichier commet quand il ne regarde pas. On cherche donc un **appel** :
+  // `api('/api/overview'…`.
+  assert.doesNotMatch(clientJs, /api\('\/api\/overview'/,
+    'le client ne lit plus la vue de classe : elle est dans `/admin`');
+  assert.doesNotMatch(clientJs, /api\('\/api\/live'/,
+    'ni le flux de la vue de classe');
+
+  // Le pied de page du portail — « espace joueur » — n'a plus de page à
+  // renvoyer vers.
+  assert.doesNotMatch(html, /espace joueur/);
 });
 
 test('le client importe bien le renderer Markdown', () => {
@@ -40,22 +93,6 @@ test('la page déclare les deux modes', () => {
   assert.ok(html.indexOf('data-mode="competitive"') < html.indexOf('id="gateForm"'));
 });
 
-test('le portail suit la classe, tous modes confondus', () => {
-  // Un seul tableau, pas un par mode. Les deux modes jouent le même contenu :
-  // les séparer en deux tableauxavait de comparer un mode à l'autre, ce qui
-  // n'a aucun sens puisque ce n'est pas une course.
-  assert.match(html, /id="playersBody"/);
-  assert.doesNotMatch(html, /id="compBody"/, 'le tableau par mode a disparu');
-  assert.doesNotMatch(html, /id="normBody"/);
-  assert.doesNotMatch(html, /Ligue Compétitive/i, 'la copie de la V1 est restée');
-  assert.doesNotMatch(html, /Classé au score/, 'la promesse du score est restée');
-  // Le bandeau remplace le podium : mêmes colonnes, pas de classement.
-  for (const h of ['Autonomie', 'Compréhension', 'Niveau']) {
-    assert.ok(html.includes(h), `colonne manquante : ${h}`);
-  }
-  assert.doesNotMatch(html, /<th[^>]*>Score<\/th>/);
-});
-
 test('le client lit les champs que l\'API renvoie réellement', () => {
   // On compare les champs que le client consomme à ce que /api/me renvoie
   // réellement, et non à un exemple inventé : une dérive des deux côté se voit
@@ -65,8 +102,11 @@ test('le client lit les champs que l\'API renvoie réellement', () => {
     team: 'X', mode: 'competitive', mode_label: 'Challenge',
     mastery: { progress_ratio: 0.04, autonomy_ratio: 1, comprehension_ratio: 0.5,
       level: { key: 'debut', name: 'Débutant' } },
-    total_quests: 27, progress: '1/27', finished: false,
-    registered_at: '10:00:00', last_submission: '10:01:00', next_quest: 'x',
+    // `finished` et `last_submission` ne sont plus lus par ce client : ils
+    // servaient au portail, parti dans `/admin`. L'API les sert toujours — le
+    // tableau de suivi de l'administrateur en a besoin.
+    total_quests: 27, progress: '1/27',
+    registered_at: '10:00:00', next_quest: 'x',
     history: [{ quest_id: 'a', quest_number: 1, title: 'T', hints_used: 0,
       autonomous: true, check_ok: true, recall_ok: true, wrong_flags: 0, time_ms: 1000 }],
   };
@@ -163,43 +203,6 @@ test('le score et le rang ont disparu, pas seulement masqués', () => {
   assert.match(html, /id="statAutonomy"/, 'l\'autonomie prend la place du rang');
   assert.match(clientJs, /#levelVal/, 'le client doit remplir le niveau');
   assert.match(clientJs, /#autonomyVal/, 'le client doit remplir l\'autonomie');
-});
-
-test('le portail se reconnecte au flux SSE si la coupure passe', () => {
-  assert.match(clientJs, /new EventSource\('\/api\/live'\)/);
-  assert.match(clientJs, /es\.onerror/, 'une coupure doit être signalée');
-  assert.match(clientJs, /stopPortalStream\(\)/, 'l\'ancien flux doit être fermé');
-});
-
-test('le flux SSE est fermé dans les deux vues', () => {
-  // Sans cela, chaque aller-retour portail → jeu laissait une connexion
-  // orpheline et le poste épuisait son quota serveur.
-  const route = clientJs.split('async function route()')[1].split('window.addEventListener')[0];
-  const brancheJeu = route.split('const saved = store.read()')[1] ?? '';
-  const avantPortail = route.split('if (!wantsGame)')[0];
-  assert.ok(avantPortail.includes('stopPortalStream()'),
-    'la fermeture doit avoir lieu avant de choisir la vue, pas seulement dans la branche portail');
-  assert.doesNotMatch(brancheJeu, /startPortalStream\(\)/,
-    'le jeu ne doit pas rouvrir un flux dont il n\'a pas besoin');
-});
-
-test('la reconnexion SSE espace les tentatives', () => {
-  // EventSource se reconnecte seul toutes les ~3 s ; sans backoff, une coupure
-  // prolongée épuise le quota du serveur et l'indicateur reste bloqué.
-  assert.match(clientJs, /state\.retries/);
-  assert.match(clientJs, /2 \*\* \(state\.retries - 1\)/, 'le recul doit être exponentiel');
-  assert.match(clientJs, /Math\.min\(30_000/, 'le recul doit être borné');
-  assert.match(clientJs, /es\.close\(\)/, 'la source doit être fermée avant la relance manuelle');
-});
-
-test('l\'animation du témoin ne tourne que si la connexion est vivante', () => {
-  const css = fs.readFileSync(path.resolve('public/style.css'), 'utf8');
-  const bloc = css.slice(css.indexOf('.live-dot i'));
-  assert.match(bloc.slice(0, 200), /animation: pulse/);
-  assert.match(bloc, /\.live-dot\.off i \{[^}]*animation: none/,
-    'l\'état déconnecté ne doit plus clignoter');
-  assert.match(clientJs, /dot\.dataset\.state = etat/,
-    'le client doit piloter l\'état visuel');
 });
 
 test('le HTML est en français et en UTF-8', () => {

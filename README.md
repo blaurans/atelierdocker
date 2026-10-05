@@ -20,6 +20,14 @@ compréhension est vérifiée.
 Le portail est en production sur **https://atelierdocker.laurans.org**, servi
 par Caddy (TLS automatique) devant le conteneur.
 
+Trois adresses, et c'est tout :
+
+| adresse | pour qui |
+|---|---|
+| `https://atelierdocker.laurans.org` | **les élèves.** C'est la page d'accueil : elle ouvre directement l'écran de choix de mode |
+| `https://atelierdocker.laurans.org/#/` | les mêmes, par l'ancienne adresse — elle fonctionne encore |
+| `https://atelierdocker.laurans.org/admin` | **l'enseignant.** Derrière le mot de passe du `.env` |
+
 ```bash
 cp .env.example .env
 $EDITOR .env          # ATELIER_ADMIN_KEY est obligatoire
@@ -323,8 +331,9 @@ faite sans indice, si la compréhension est vérifiée, et le niveau atteint.
 ### Avant le TP
 
 1. `docker compose up -d --build` (voir § Mise en ligne pour le `.env`).
-2. En salle, le portail est déjà en ligne : projetez
-   **https://atelierdocker.laurans.org**, il se met à jour tout seul.
+2. En salle, le portail est déjà en ligne. Projetez
+   **https://atelierdocker.laurans.org/admin** : c'est l'écran qui suit la
+   classe, et il se met à jour tout seul.
 3. Hors ligne, il faut publier un port et diffuser l'IP de sortie —
    `ip route get 1.1.1.1` l'affiche.
 4. **Vérifiez que les postes ont Docker** : `docker run --rm hello-world`.
@@ -340,13 +349,22 @@ faite sans indice, si la compréhension est vérifiée, et le niveau atteint.
 
 ### Pendant le TP
 
-Le portail affiche en direct :
+`/admin` affiche en direct :
 
-- **Une liste par élève, triée alphabétiquement** — où il en est, son autonomie,
-  sa compréhension, son niveau, et le détail par atelier
-- **Le poste (IP) du dernier appel**, pour retrouver la machine d'un élève bloqué
-- **Les ateliers les plus coûteux en indices** — la réponse à « où ça coince »
-- **Inscription rapide** — pour les retards, sans passer par le jeu
+- **Une ligne par élève, triée alphabétiquement** — où il en est, son autonomie,
+  sa compréhension, son niveau, le nombre d'indices qu'il a pris
+- **Le poste (IP)**, pour retrouver la machine d'un élève bloqué
+- **Les quêtes sur lesquelles des élèves sont restés bloqués juste avant** — la
+  réponse à « où ça coince »
+- **Inscription rapide** — pour les retards, sans passer par l'écran de jeu
+- **Le journal**, y compris les refus de mot de passe
+
+La projection pour l'enseignant était sur la page d'accueil. Elle n'y est plus,
+pour deux raisons : elle ne peut pas rester publique — elle liste toute la
+classe avec les adresses IP — et elle était déjà à moitié morte, le tableau de
+classe dépendant d'`/api/overview`, fermée le jour où l'administration a été
+verrouillée. La page d'accueil affichait donc un toast d'erreur à chaque élève,
+à chaque séance.
 
 La colonne IP sert à retrouver un poste : quand un élève bloque et que vous ne
 savez plus sur quelle machine il est, la liste vous y renvoie. Ce n'est pas une
@@ -532,7 +550,7 @@ les tests unitaires ne pouvaient pas voir, parce qu'ils ne lancent pas Docker.
 ```bash
 npm install          # une seule dépendance : express
 npm start            # http://localhost:8000
-npm test             # 213 tests
+npm test             # 204 tests
 npm run dev          # rechargement à chaud
 npm run check-content # valide que le contenu est chargeable
 npm run smoke        # joue les 27 missions, affiche la maîtrise
@@ -599,17 +617,17 @@ src/
   questpack.js          chargement + validation du contenu
   mastery.js            les trois ratios et les paliers
   progress.js           validation d'une mission, écriture des faits
-  portal.js             état du portail + flux SSE
+  portal.js             état de la classe + flux SSE (derrière le mot de passe)
   admin_session.js      mot de passe, jeton signé, cookie de session
   routes/api.js         parcours et soumission — le jeu, rien d'autre
   routes/atelier.js     indice, compréhension, réflexe
   routes/admin.js       tout ce qui est fermé, plus la vue de classe
   repo/arena.js         accès SQLite (joueurs, validations)
   repo/progress_repo.js indices consommés, tentatives
-public/                 portail, jeu et /admin (vanilla, sans dépendance)
-test/                   213 tests : format du contenu, maîtrise, migration,
+public/                 le jeu et /admin (vanilla, sans dépendance)
+test/                   204 tests : format du contenu, maîtrise, migration,
                         règles Markdown, gitignore, synchronisation des scripts,
-                        API, rendu du portail, des QCM et de /admin,
+                        API, routage, rendu des QCM et de /admin,
                         administration, contrat, invariants, qualité du contenu
 docs/CONTRACTS.md       contrat de données et d'API
 ```
@@ -625,8 +643,8 @@ touche jamais le code.
   de la version published ici tourne sur Node 22 à 26.
 - **Zéro dépendance front.** Pas de CDN, pas de framework, pas de webfont. Le
   jeu fonctionne sur un réseau de TP coupé d'Internet.
-- **Pas de rechargement de page.** Le portail reçoit `overview` par SSE à
-  chaque validation. Le cahier des charges rafraîchissait toutes les 4 s.
+- **Pas de rechargement de page.** L'écran d'administration reçoit `overview` par
+  SSE à chaque validation. Le cahier des charges rafraîchissait toutes les 4 s.
 - **Markdown rendu par construction DOM.** Le contenu pédagogique n'est jamais
   interprété comme du HTML.
 

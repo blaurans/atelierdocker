@@ -393,6 +393,62 @@ async function agir(chemin, methode, corps) {
   }
 }
 
+/* ---------------------------------------------------------------- inscription */
+
+/**
+ * Inscrire un élève sans qu'il passe par l'écran de choix de mode.
+ *
+ * Le handler était dans `app.js`, sur la page d'accueil. Il est ici pour deux
+ * raisons : c'est un geste d'enseignant, et le formulaire lui-même est passé
+ * dans le même mouvement.
+ *
+ * Le secret est facultatif, mais l'« inscription rapide » n'était pas le chemin
+ * le mieux protégé : sur la page d'accueil, aucun champ secret — donc un pseudo
+ * public pour tous ceux qui prenaient ce raccourci.
+ */
+$('#regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const team = $('#inTeam').value.trim();
+  const secret = $('#inSecret').value.trim();
+  const mode = $('#inMode').value;
+  const msg = $('#regMsg');
+  msg.textContent = '';
+  msg.className = 'reg-msg';
+
+  if (!team) {
+    msg.textContent = '❌ Entre un pseudo.';
+    return;
+  }
+
+  try {
+    const r = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(secret ? { team, mode, secret } : { team, mode }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      // Un 409 n'est pas un échec : c'est un élève qui revient. La session est
+      // rendue d'un coup, sans dépendre du formulaire du jeu.
+      msg.className = r.status === 409 ? 'reg-msg reg-warn' : 'reg-msg reg-err';
+      msg.textContent = d.error ?? `HTTP ${r.status}`;
+    } else if (d.status === 'created') {
+      msg.className = 'reg-msg';
+      msg.textContent = `✅ ${d.team} — son token : ${d.token}`;
+      // Le token est ce que l'élève colle dans le formulaire du jeu s'il
+      // s'inscrit depuis un autre poste. Le lui montrer ici évite qu'il ait à
+      // le retrouver dans l'historique du navigateur.
+    } else {
+      msg.className = 'reg-msg';
+      msg.textContent = `ℹ️ ${d.message}`;
+    }
+    await charger();
+  } catch (err) {
+    msg.className = 'reg-msg reg-err';
+    msg.textContent = `❌ ${err.message}`;
+  }
+});
+
 /* ------------------------------------------------------------------ divers */
 
 function rendreCurl() {

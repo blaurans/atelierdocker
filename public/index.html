@@ -4,93 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atelier Docker</title>
-<meta name="description" content="Serious game d'apprentissage de Docker. 7 ateliers, 26 quêtes, mode challenge ou mode sans stress.">
+<meta name="description" content="Serious game d'apprentissage de Docker. 7 ateliers, 27 quêtes, mode Challenge ou mode Sans stress.">
 <link rel="stylesheet" href="/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐳</text></svg>">
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════ PORTAL (vue enseignant) -->
-<div id="portal" class="screen">
-  <header class="portal-head">
-    <div class="wrap head-row">
-      <div>
-        <h1 class="brand"><span class="bolt">🐳</span> ATELIER DOCKER <span class="sep">//</span> <span class="thin">COMPRENDRE AVANT DE RÉUSSIR</span></h1>
-        <p class="tagline">Serious game · 7 ateliers · <span id="questCount">…</span> quêtes · compréhension vérifiée</p>
-      </div>
-      <div class="head-actions">
-        <span class="live-dot" id="liveDot"><i></i><span id="liveLabel">connexion…</span></span>
-        <a class="btn btn-ghost" href="#/">✈ Jouer</a>
-      </div>
-    </div>
-  </header>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     La V2 avait deux vues sur cette page : le portail enseignant — la classe,
+     l'inscription rapide — et le jeu. Le portail est parti dans /admin, derrière
+     le mot de passe. Ce qu'il montrait, la classe et les adresses IP, y est
+     déjà et en mieux ; et sa lecture ne peut plus être publique.
 
-  <main class="wrap portal-body">
+     Il était d'ailleurs à moitié mort : le tableau de classe dépend de
+     /api/overview, fermée le jour où l'administration a été verrouillée. La page
+     d'accueil affichait donc un toast d'erreur à quiconque la chargeait.
 
-    <!--
-      Le suivi de la classe. Les deux modes sont dans le même tableau, avec les
-      mêmes colonnes : ils jouent le même contenu, la seule différence est le prix
-      des indices. Les séparer en deux tableaux — comme le faisait la V1 —avensait
-      de comparer un mode à l'autre, ce qui n'a aucun sens : ce n'est pas une
-      course.
-    -->
-    <section class="panel">
-      <div class="panel-head">
-        <h2><span class="ico">📊</span> Suivi de la classe</h2>
-        <span class="panel-sub">Progression · autonomie · compréhension</span>
-      </div>
-      <div id="podium" class="podium"></div>
-      <div class="table-scroll">
-        <table class="board">
-          <thead><tr>
-            <th>Joueur</th>
-            <th class="c-mid">Mode</th>
-            <th class="c-mid">Progression</th>
-            <th class="c-mid">Autonomie</th>
-            <th class="c-mid">Compréhension</th>
-            <th class="c-mid">Niveau</th>
-            <th class="c-right">Dernier flag</th>
-            <th class="c-right">Poste (IP)</th>
-          </tr></thead>
-          <tbody id="playersBody"></tbody>
-        </table>
-      </div>
-    </section>
+     `/` et `/#/` mènent au jeu. Un élève qui tape l'adresse du portail entre
+     directement dans l'atelier ; l'enseignant passe par /admin.
+     ══════════════════════════════════════════════════════════════════════ -->
 
-    <!-- Inscription express (équivalent du formulaire du cahier des charges) -->
-    <section class="panel panel-cyan" id="register-section">
-      <div class="panel-head"><h2><span class="ico">📝</span> Inscription rapide</h2></div>
-      <form class="reg-row" id="regForm">
-        <input id="inTeam" type="text" placeholder="Ton pseudo" autocomplete="off" required minlength="2" maxlength="32">
-        <input id="inSecret" type="text" placeholder="Secret (recommandé)" autocomplete="off">
-        <select id="inMode">
-          <option value="competitive">⚡ Challenge — indices payants</option>
-          <option value="normal">🧘 Sans stress — indices gratuits</option>
-        </select>
-        <button class="btn btn-primary" type="submit">Rejoindre le lab</button>
-      </form>
-      <p class="reg-msg" id="regMsg"></p>
-      <p class="field-note">
-        Le secret protège ton pseudo : sans lui, quelqu'un qui tape le même nom
-        récupère ta progression. Choisis-en un, et note-le — c'est ce qui te
-        rendra ta session si le poste redémarre.
-      </p>
-      <details class="curl-help">
-        <summary>Ou depuis le terminal, en <code>curl</code></summary>
-        <pre><code id="curlExamples"></code></pre>
-      </details>
-    </section>
-
-    <footer class="portal-foot">
-      <span>👨‍🏫 <a href="#/">espace joueur</a></span>
-      <span>·</span>
-      <span>🏁 Docker en local sur chaque poste</span>
-    </footer>
-  </main>
-</div>
-
-<!-- ══════════════════════════════════════════════ JEU (vue étudiant) -->
-<div id="game" class="screen" hidden>
+<!-- ══════════════════════════════════════════════ LE JEU, c'est la page -->
+<!-- Pas de `hidden` : c'est la seule vue de ce document, et `[hidden]`
+     l'emporterait sur tout `display` de la feuille de style. -->
+<div id="game" class="screen">
 
   <!-- Choix du mode / connexion -->
   <div id="gate" class="gate">

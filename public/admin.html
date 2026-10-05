@@ -59,6 +59,43 @@
     <!-- La classe en un coup d'œil -->
     <section class="admin-stats" id="stats"></section>
 
+    <!--
+      L'inscription rapide.
+
+      Elle était sur la page d'accueil, où elle servait à inscrire une classe
+      entière en tapant les pseudos, pour ne pas faire perdre cinq minutes aux
+      retardataires à choisir leur mode. C'est un geste d'enseignant sur une
+      page publique : elle n'a rien à y faire. Elle est ici, à côté du reste.
+
+      Le champ secret est là aussi, et il ne l'était pas : sur la page
+      d'accueil, « inscription rapide » était le chemin le moins protégé — aucun
+      secret, donc un pseudo public. C'est paradoxalement celui que prennent les
+      élèves pressés.
+    -->
+    <section class="admin-panel">
+      <div class="admin-panel-head">
+        <h2><span class="ico">📝</span> Inscrire un élève</h2>
+        <span class="admin-panel-sub">Pour les retards : le pseudo suffit, pas besoin de choisir un mode à l'écran</span>
+      </div>
+      <form class="reg-row" id="regForm">
+        <input id="inTeam" type="text" placeholder="Ton pseudo" autocomplete="off"
+               required minlength="2" maxlength="32">
+        <input id="inSecret" type="text" placeholder="Secret (recommandé)" autocomplete="off">
+        <select id="inMode">
+          <option value="competitive">⚡ Challenge — indices payants</option>
+          <option value="normal">🧘 Sans stress — indices gratuits</option>
+        </select>
+        <button class="btn btn-primary" type="submit">Inscrire</button>
+      </form>
+      <p class="reg-msg" id="regMsg"></p>
+      <p class="admin-note" style="padding: 0 1.1rem 1rem">
+        <b>Le secret protège le pseudo.</b> Sans lui, n'importe qui tape ce nom
+        et récupère la session avec la progression. Fais-le saisir aux élèves, et
+        qu'ils le notent : c'est ce qui leur rend leur place après un
+        rechargement, ou sur un autre poste.
+      </p>
+    </section>
+
     <!-- Les élèves -->
     <section class="admin-panel">
       <div class="admin-panel-head">

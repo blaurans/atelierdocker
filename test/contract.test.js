@@ -375,32 +375,36 @@ test('les scripts remplacent l\'origine comme le serveur le fait', async () => {
 
 test('les libellés de mode sont les mêmes partout', async () => {
   // « Challenge » et « Sans stress » sont affichés à trois endroits : la
-  // configuration serveur, la page HTML (les deux cartes de choix de mode), et
-  // le tableau de suivi. Une divergence ne casse rien — elle se contente de
-  // nommer le même mode de trois façons différentes, ce qu'un enseignant voit
-  // immédiatement et un élève jamais.
+  // configuration serveur, la page du jeu (les deux cartes de choix de mode) et
+  // l'écran d'administration (le tableau de suivi, le menu d'inscription). Une
+  // divergence ne casse rien — elle se contente de nommer le même mode de trois
+  // façons, ce qu'un enseignant voit immédiatement et un élève jamais.
   const { MODE_LABELS } = await import('../src/config.js');
   assert.deepEqual(MODE_LABELS, { competitive: 'Challenge', normal: 'Sans stress' });
 
-  const client = read('public/app.js');
   const html = read('public/index.html');
-  // Le client duplique la table — une page sans build ne peut pas importer un
-  // module Node — donc les deux listes doivent être identiques, libellé par
-  // libellé.
-  for (const [mode, label] of Object.entries(MODE_LABELS)) {
-    assert.ok(client.includes(`${mode}: '${label}'`),
-      `app.js doit porter « ${mode}: '${label}' »`);
-    assert.ok(new RegExp(`<span class="mode-badge">${label}</span>`).test(html)
-      || new RegExp(`>${label}<`).test(html),
-    `index.html doit afficher « ${label} » pour le mode ${mode}`);
+  const admin = read('public/admin.html');
+  for (const label of Object.values(MODE_LABELS)) {
+    // La page du jeu : la carte de choix.
+    assert.ok(html.includes(`class="mode-badge">${label}</span>`),
+      `index.html doit porter le badge « ${label} »`);
+    // L'écran d'administration : les options du menu d'inscription, chacune
+    // précédée de son emoji — « ⚡ Challenge — indices payants ».
+    assert.ok(new RegExp(`>[^<]*${label.replace(' ', '\\s')} — indices`).test(admin),
+      `admin.html doit nommer le mode « ${label} » dans son menu`);
   }
 
-  // Et plus aucune trace de l'ancienne nomenclature.
-  assert.doesNotMatch(html, /COMPÉTITIF|NORMAL(?! )/, 'les badges de la V1 sont restés');
-  assert.doesNotMatch(html, /Score</, 'la carte de mode promet encore un score');
-  assert.doesNotMatch(html, /Podium en direct/, 'et un podium : il n\'y en a plus');
-});
+  // Le client du jeu n'a plus sa propre table : le portail qui la lisait est
+  // parti dans `/admin`, qui a la sienne — et le serveur reste la référence.
+  const client = read('public/app.js');
+  assert.doesNotMatch(client, /MODE_LABELS/,
+    'le client ne duplique plus la table : plus rien ne la lisait');
 
+  // Et plus aucune trace de l'ancienne nomenclature.
+  for (const f of ['public/index.html', 'public/admin.html', 'public/app.js']) {
+    assert.doesNotMatch(read(f), /COMPÉTITIF|>NORMAL</, `${f} : nomenclature de la V1`);
+  }
+});
 test('le contrat décrit la fermeture de l\'administration', () => {
   // Une règle de sécurité qui vit dans le code mais pas dans le contrat est une
   // règle qu'on ne relit pas au moment d'en avoir besoin.

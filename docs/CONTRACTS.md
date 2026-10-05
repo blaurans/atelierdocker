@@ -337,7 +337,7 @@ en-tête permettrait à un élève de maquiller son adresse.
 | `GET /api/me` | la maîtrise du joueur et son historique |
 | `POST /api/register` | inscription, jeton stable |
 | `POST /api/submit` | soumission d'un mot de passe |
-| `GET /api/overview` | l'état du portail enseignant — **fermé, § 2.7** |
+| `GET /api/overview` | l'état de la classe — **fermé, § 2.7**, appelé seulement par `/admin` |
 | `GET /api/live` | flux SSE de cet état — **fermé, § 2.7** |
 | `GET /api/stats` | indicateurs de séance — **fermé, § 2.7** |
 | `GET /api/commands` | mémento de commandes Docker |
@@ -395,6 +395,24 @@ inscriptions.
 
 La page `GET /admin` est servie **sans** jeton : c'est elle qui porte le champ
 du mot de passe. Ce qu'elle affiche ensuite, oui, est fermé.
+
+### 2.8 Qui appelle quoi
+
+Deux pages, deux publics :
+
+| page | publique ? | ce qu'elle appelle |
+|---|---|---|
+| `/` et `/#/` | oui | `/api/register`, `/api/quests`, `/api/me`, `/api/submit`, `/api/secret`, `/api/commands`, les trois routes de maîtrise |
+| `/admin` | non, jeton requis | `/api/admin/session`, `/api/overview`, `/api/stats`, `/api/live`, `/api/admin/*` |
+
+Il n'y a **aucun** appel d'administration dans le jeu des élèves. Le tableau de
+classe ne vit que dans `/admin`, ce qui veut dire qu'une fuite de jeton de
+joueur n'expose rien : `/api/overview` répond 401 à un `X-Arena-Token`, qui
+n'est pas un jeton d'administration.
+
+`/#/` reste accepté sans rôle : c'est l'adresse que l'enseignant distribue
+depuis le début, et la faire marcher coûte moins cher que de demander à vingt
+élèves de la changer. Un hash inconnu ne mène nulle part de spécial.
 
 Les trois routes de maîtrise répondent à la règle commune : **ce qui est montré
 au client a été demandé au serveur.**
